@@ -1,0 +1,50 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create Release Package
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          mkdir -p dist/cc-token-monitor-${VERSION}
+          cp -r bin config web docs install.sh Makefile README.md LICENSE dist/cc-token-monitor-${VERSION}/
+          tar -czf dist/cc-token-monitor-${VERSION}.tar.gz -C dist cc-token-monitor-${VERSION}
+          echo "VERSION=${VERSION}" >> $GITHUB_ENV
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: dist/*.tar.gz
+          body: |
+            ## CC Token Monitor ${{ env.VERSION }}
+
+            ### Installation
+
+            ```bash
+            curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/install.sh | bash
+            ```
+
+            Or download and install manually:
+            ```bash
+            tar -xzf cc-token-monitor-${{ env.VERSION }}.tar.gz
+            cd cc-token-monitor-${{ env.VERSION }}
+            make install
+            ```
+
+            ### Quick Start
+
+            ```bash
+            cc-token-monitor once    # Initialize
+            cc-token-monitor today   # View today's stats
+            ccweb                    # Start web interface
+            ```
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

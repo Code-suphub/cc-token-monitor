@@ -1,0 +1,57 @@
+#!/bin/zsh
+# Claude Code Token Web 界面启动脚本
+
+APP_PATH="$HOME/.claude/token-stats/web/app.py"
+PORT=${1:-8866}
+
+# 检查 Python
+if ! command -v python3 >/dev/null 2>&1; then
+    echo -e "\033[0;31m错误: 需要安装 Python3\033[0m"
+    exit 1
+fi
+
+# 检查数据是否存在
+if [[ ! -d "$HOME/.claude/token-stats/daily" ]]; then
+    echo -e "\033[0;33m警告: 数据目录不存在，先运行 cc-token-monitor once\033[0m"
+    exit 1
+fi
+
+# 检查是否已有实例在运行
+PID=$(lsof -ti :$PORT 2>/dev/null)
+if [[ -n "$PID" ]]; then
+    echo -e "\033[0;33m端口 $PORT 已被占用 (PID: $PID)\033[0m"
+    echo -e "访问: \033[0;36mhttp://127.0.0.1:$PORT\033[0m"
+    echo ""
+    echo "选项:"
+    echo "  1. 结束现有进程: kill $PID"
+    echo "  2. 使用其他端口: cc-token-web 8867"
+    exit 1
+fi
+
+echo -e "\033[0;32m启动 Token 监控 Web 界面...\033[0m"
+echo -e "端口: \033[0;36m$PORT\033[0m"
+echo -e ""
+
+# 后台启动
+nohup python3 "$APP_PATH" "$PORT" > /dev/null 2>&1 &
+echo $! > /tmp/cc-token-web.pid
+
+sleep 1
+
+if lsof -ti :$PORT >/dev/null 2>&1; then
+    echo -e "\033[0;32m✓ 服务已启动!\033[0m"
+    echo -e "访问地址: \033[0;36mhttp://127.0.0.1:$PORT\033[0m"
+    echo ""
+    echo "常用命令:"
+    echo "  查看日志: tail -f ~/.claude/token-stats/web/server.log"
+    echo "  停止服务: kill \$(cat /tmp/cc-token-web.pid)"
+    echo "  前台运行: python3 $APP_PATH $PORT"
+    
+    # 尝试自动打开浏览器
+    if command -v open >/dev/null 2>&1; then
+        open "http://127.0.0.1:$PORT"
+    fi
+else
+    echo -e "\033[0;31m启动失败\033[0m"
+    exit 1
+fi

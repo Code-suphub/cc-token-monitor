@@ -1,0 +1,13 @@
+#!/bin/zsh
+# 停止 Web 服务
+
+PORT=${1:-8866}
+PID=$(lsof -ti :$PORT 2>/dev/null)
+
+if [[ -n "$PID" ]]; then
+    kill $PID
+    echo -e "\033[0;32m已停止服务 (PID: $PID)\033[0m"
+    rm -f /tmp/cc-token-web.pid
+else
+    echo -e "\033[0;33m端口 $PORT 没有运行中的服务\033[0m"
+fi

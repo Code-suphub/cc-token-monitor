@@ -1,0 +1,49 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Build artifacts
+dist/
+*.tar.gz
+*.zip
+
+# Test files
+test/tmp/
+*.log
+
+# Data (don't commit user's data)
+data/
+stats/
+
+# Temporary files
+*.tmp
+*.bak
+.cache/
+
+# Node modules (if web interface uses npm)
+node_modules/
+package-lock.json
+yarn.lock
+
+# Python (if web uses Python)
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv
+
+# Coverage reports
+coverage/
+*.cover
+.nyc_output/

@@ -1,0 +1,204 @@
+{
+  "_注释": "Claude Code Token 监控 - 模型价格配置 (USD per 1M tokens)",
+  "_更新日期": "2026-03-13",
+  "models": {
+    "claude-opus-4-6": {
+      "input": 15.0,
+      "output": 75.0,
+      "provider": "anthropic"
+    },
+    "claude-opus-4-5": {
+      "input": 15.0,
+      "output": 75.0,
+      "provider": "anthropic"
+    },
+    "claude-sonnet-4-6": {
+      "input": 3.0,
+      "output": 15.0,
+      "provider": "anthropic"
+    },
+    "claude-sonnet-4-5": {
+      "input": 3.0,
+      "output": 15.0,
+      "provider": "anthropic"
+    },
+    "claude-haiku-4-5-20251001": {
+      "input": 0.8,
+      "output": 4.0,
+      "provider": "anthropic"
+    },
+    "claude-haiku-4-5": {
+      "input": 0.8,
+      "output": 4.0,
+      "provider": "anthropic"
+    },
+    "kimi-for-coding": {
+      "input": 0.8,
+      "output": 0.8,
+      "provider": "moonshot"
+    },
+    "kimi-k2.5": {
+      "input": 0.8,
+      "output": 0.8,
+      "provider": "moonshot"
+    },
+    "kimi-k2": {
+      "input": 0.8,
+      "output": 0.8,
+      "provider": "moonshot"
+    },
+    "kimi-k1.5": {
+      "input": 0.8,
+      "output": 0.8,
+      "provider": "moonshot"
+    },
+    "gpt-4o": {
+      "input": 2.5,
+      "output": 10.0,
+      "provider": "openai"
+    },
+    "gpt-4o-mini": {
+      "input": 0.15,
+      "output": 0.6,
+      "provider": "openai"
+    },
+    "gpt-4-turbo": {
+      "input": 10.0,
+      "output": 30.0,
+      "provider": "openai"
+    },
+    "gpt-4": {
+      "input": 30.0,
+      "output": 60.0,
+      "provider": "openai"
+    },
+    "gpt-3.5-turbo": {
+      "input": 0.5,
+      "output": 1.5,
+      "provider": "openai"
+    },
+    "gpt-5": {
+      "input": 5.0,
+      "output": 15.0,
+      "provider": "openai"
+    },
+    "gpt-5.1": {
+      "input": 2.5,
+      "output": 10.0,
+      "provider": "openai"
+    },
+    "gpt-5.3": {
+      "input": 3.0,
+      "output": 12.0,
+      "provider": "openai"
+    },
+    "deepseek-chat": {
+      "input": 0.14,
+      "output": 0.28,
+      "provider": "deepseek"
+    },
+    "deepseek-coder": {
+      "input": 0.14,
+      "output": 0.28,
+      "provider": "deepseek"
+    },
+    "deepseek-v3": {
+      "input": 0.27,
+      "output": 1.1,
+      "provider": "deepseek"
+    },
+    "deepseek-v3.1": {
+      "input": 0.27,
+      "output": 1.1,
+      "provider": "deepseek"
+    },
+    "deepseek-r1": {
+      "input": 0.55,
+      "output": 2.19,
+      "provider": "deepseek"
+    },
+    "gemini-2.0-flash": {
+      "input": 0.1,
+      "output": 0.4,
+      "provider": "google"
+    },
+    "gemini-2.0-pro": {
+      "input": 1.25,
+      "output": 5.0,
+      "provider": "google"
+    },
+    "gemini-1.5-pro": {
+      "input": 1.25,
+      "output": 5.0,
+      "provider": "google"
+    },
+    "gemini-1.5-flash": {
+      "input": 0.075,
+      "output": 0.3,
+      "provider": "google"
+    },
+    "qwen-max": {
+      "input": 0.5,
+      "output": 1.0,
+      "provider": "alibaba"
+    },
+    "qwen-plus": {
+      "input": 0.2,
+      "output": 0.4,
+      "provider": "alibaba"
+    },
+    "qwen-turbo": {
+      "input": 0.05,
+      "output": 0.1,
+      "provider": "alibaba"
+    },
+    "qwen-coder-plus": {
+      "input": 0.2,
+      "output": 0.4,
+      "provider": "alibaba"
+    },
+    "yi-large": {
+      "input": 1.0,
+      "output": 1.0,
+      "provider": "01.ai"
+    },
+    "yi-medium": {
+      "input": 0.3,
+      "output": 0.3,
+      "provider": "01.ai"
+    },
+    "minimax-m2": {
+      "input": 1.0,
+      "output": 1.0,
+      "provider": "minimax"
+    },
+    "llama-3.3-70b": {
+      "input": 0.15,
+      "output": 0.6,
+      "provider": "meta"
+    },
+    "llama-3.1-405b": {
+      "input": 2.0,
+      "output": 4.0,
+      "provider": "meta"
+    },
+    "mixtral-8x22b": {
+      "input": 0.6,
+      "output": 1.8,
+      "provider": "mistral"
+    },
+    "mixtral-8x7b": {
+      "input": 0.15,
+      "output": 0.45,
+      "provider": "mistral"
+    }
+  },
+  "default": {
+    "input": 0.8,
+    "output": 0.8
+  },
+  "cache_discount": {
+    "注释": "缓存读取通常有折扣",
+    "read_multiplier": 0.1
+  }
+}
