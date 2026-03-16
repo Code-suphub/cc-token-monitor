@@ -1,8 +1,8 @@
 class CcTokenMonitor < Formula
   desc "Monitor Claude Code token usage and costs"
-  homepage "https://github.com/yourusername/cc-token-monitor"
-  url "https://github.com/yourusername/cc-token-monitor/archive/refs/tags/v1.0.0.tar.gz"
-  sha256 "PLACEHOLDER_SHA256"
+  homepage "https://github.com/Code-suphub/cc-token-monitor"
+  url "https://github.com/Code-suphub/cc-token-monitor/archive/refs/tags/v1.0.0.tar.gz"
+  sha256 "c2d5d41de7f8011ba3de53a6328db38e857a3d788ce7bed417fa260f4ef52ffe"
   license "MIT"
 
   depends_on "jq"
@@ -49,7 +49,7 @@ class CcTokenMonitor < Formula
         Edit ~/.claude/token-stats/config/prices.json to customize prices
 
       For more information:
-        https://github.com/yourusername/cc-token-monitor#readme
+        https://github.com/Code-suphub/cc-token-monitor#readme
     EOS
   end
 

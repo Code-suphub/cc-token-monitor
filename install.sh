@@ -3,7 +3,7 @@
 
 set -e
 
-REPO_URL="https://github.com/yourusername/cc-token-monitor"
+REPO_URL="https://github.com/Code-suphub/cc-token-monitor"
 INSTALL_DIR="/usr/local"
 BIN_DIR="$INSTALL_DIR/bin"
 
@@ -133,7 +133,7 @@ print_footer() {
     echo "  cc-token-monitor config   # View configuration"
     echo "  ccweb                     # Start web interface"
     echo ""
-    echo "Documentation: https://github.com/yourusername/cc-token-monitor#readme"
+    echo "Documentation: https://github.com/Code-suphub/cc-token-monitor#readme"
     echo ""
 }
 
