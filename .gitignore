@@ -63,3 +63,7 @@ dSYM/
 # HUD specific
 hud/build/
 hud/.swiftpm/
+
+# Documentation (design docs, notes)
+discuss/
+docs/
