@@ -93,12 +93,9 @@ def load_session_detail(session_id):
     if not session_file or not os.path.exists(session_file):
         return None
 
-    turns = []
-    total_input = 0
-    total_output = 0
-    total_cache_create = 0
-    total_cache_read = 0
-    raw_message_count = 0  # 原始消息数（过滤前）
+    # 按 message.id 分组，合并同一响应的 streaming 记录
+    from collections import defaultdict
+    resp_groups = defaultdict(list)
 
     try:
         with open(session_file, 'r') as f:
@@ -110,76 +107,110 @@ def load_session_detail(session_id):
                     data = json.loads(line)
                     if data.get('type') != 'assistant':
                         continue
-
-                    usage = data.get('message', {}).get('usage', {})
-                    if not usage:
-                        continue
-
-                    input_tokens = usage.get('input_tokens', 0)
-                    output_tokens = usage.get('output_tokens', 0)
-                    cache_create_tokens = usage.get('cache_creation_input_tokens', 0)
-                    cache_read_tokens = usage.get('cache_read_input_tokens', 0)
-
                     msg = data.get('message', {})
-                    content = msg.get('content', [])
-                    content_types = [c.get('type') for c in content]
-                    stop_reason = msg.get('stop_reason')
-
-                    total_input += input_tokens
-                    total_output += output_tokens
-                    total_cache_create += cache_create_tokens
-                    total_cache_read += cache_read_tokens
-
-                    # 确定消息类型和状态
-                    msg_type = []
-                    msg_status = 'complete'  # complete, thinking, waiting, empty
-
-                    has_thinking = any(t == 'thinking' for t in content_types)
-                    has_tool_use = any(t == 'tool_use' for t in content_types)
-                    has_text = any(t == 'text' for t in content_types)
-
-                    # 获取 text content 的实际长度
-                    text_length = 0
-                    for c in content:
-                        if c.get('type') == 'text':
-                            text_length += len(c.get('text', ''))
-
-                    # 优先级：tool_use > thinking > text
-                    # 如果 output=0 且 text 为空，标记为特殊状态
-                    is_empty_output = output_tokens == 0 and text_length == 0
-
-                    if has_tool_use:
-                        msg_type.append('tool_use')
-                        if not stop_reason and output_tokens == 0:
-                            msg_status = 'waiting'
-                    elif has_thinking:
-                        msg_type.append('thinking')
-                        if not stop_reason and output_tokens == 0:
-                            msg_status = 'thinking'
-                    elif has_text:
-                        msg_type.append('text')
-                        if is_empty_output:
-                            msg_status = 'empty'  # 有text类型但实际无输出
-
-                    turns.append({
-                        'turn': len(turns) + 1,
-                        'model': msg.get('model', 'unknown'),
-                        'input': input_tokens,
-                        'output': output_tokens,
-                        'cache_create': cache_create_tokens,
-                        'cache_read': cache_read_tokens,
-                        'timestamp': data.get('timestamp', ''),
-                        'cumulative_input': total_input,
-                        'cumulative_output': total_output,
-                        'cumulative_total': total_input + total_output,
-                        'msg_type': msg_type,
-                        'msg_status': msg_status,
-                        'stop_reason': stop_reason
-                    })
+                    resp_id = msg.get('id', 'unknown')
+                    resp_groups[resp_id].append(data)
                 except:
                     continue
     except:
         pass
+
+    # 合并同一响应的多条记录
+    turns = []
+    total_input = 0
+    total_output = 0
+    total_cache_create = 0
+    total_cache_read = 0
+
+    for resp_id, records in resp_groups.items():
+        if not records:
+            continue
+
+        # 按时间排序，取第一条和最后一条
+        records = sorted(records, key=lambda r: r.get('timestamp', ''))
+        first = records[0]
+        last = records[-1]
+
+        msg = last.get('message', {})
+        usage = msg.get('usage', {})
+        if not usage:
+            continue
+
+        input_tokens = usage.get('input_tokens', 0)
+        output_tokens = usage.get('output_tokens', 0)
+        cache_create_tokens = usage.get('cache_creation_input_tokens', 0)
+        cache_read_tokens = usage.get('cache_read_input_tokens', 0)
+
+        total_input += input_tokens
+        total_output += output_tokens
+        total_cache_create += cache_create_tokens
+        total_cache_read += cache_read_tokens
+
+        # 合并 content，按 type 去重
+        seen_types = set()
+        content_types = []
+        for r in records:
+            for c in r.get('message', {}).get('content', []):
+                ctype = c.get('type')
+                if ctype and ctype not in seen_types:
+                    seen_types.add(ctype)
+                    content_types.append(ctype)
+
+        stop_reason = msg.get('stop_reason')
+
+        # 确定消息类型和状态
+        msg_type = []
+        msg_status = 'complete'
+
+        has_thinking = 'thinking' in seen_types
+        has_tool_use = 'tool_use' in seen_types
+        has_text = 'text' in seen_types
+
+        # 获取 text content 的实际长度（从最后一条记录）
+        text_length = 0
+        for c in msg.get('content', []):
+            if c.get('type') == 'text':
+                text_length += len(c.get('text', ''))
+
+        is_empty_output = output_tokens == 0 and text_length == 0
+
+        if has_tool_use:
+            msg_type.append('tool_use')
+            if not stop_reason and output_tokens == 0:
+                msg_status = 'waiting'
+        elif has_thinking:
+            msg_type.append('thinking')
+            if not stop_reason and output_tokens == 0:
+                msg_status = 'thinking'
+        elif has_text:
+            msg_type.append('text')
+            if is_empty_output:
+                msg_status = 'empty'
+
+        turns.append({
+            'turn': len(turns) + 1,
+            'model': msg.get('model', 'unknown'),
+            'input': input_tokens,
+            'output': output_tokens,
+            'cache_create': cache_create_tokens,
+            'cache_read': cache_read_tokens,
+            'timestamp': first.get('timestamp', ''),
+            'cumulative_input': total_input,
+            'cumulative_output': total_output,
+            'cumulative_total': total_input + total_output,
+            'msg_type': msg_type,
+            'msg_status': msg_status,
+            'stop_reason': stop_reason
+        })
+
+    # 按时间排序并重新编号
+    turns.sort(key=lambda t: t['timestamp'])
+    for i, turn in enumerate(turns, 1):
+        turn['turn'] = i
+        # 重新计算累计值
+        turn['cumulative_input'] = sum(t['input'] for t in turns[:i])
+        turn['cumulative_output'] = sum(t['output'] for t in turns[:i])
+        turn['cumulative_total'] = turn['cumulative_input'] + turn['cumulative_output']
 
     return {
         'session_id': session_id,
