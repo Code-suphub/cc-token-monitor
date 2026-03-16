@@ -47,3 +47,19 @@ venv/
 coverage/
 *.cover
 .nyc_output/
+
+# Swift / Xcode
+.build/
+*.xcodeproj/
+*.xcworkspace/
+*.xcuserdata/
+DerivedData/
+*.app
+dSYM/
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# HUD specific
+hud/build/
+hud/.swiftpm/

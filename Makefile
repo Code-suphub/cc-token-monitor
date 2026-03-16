@@ -63,6 +63,25 @@ aliases:
 	@echo 'alias ccprice="cc-token-monitor price"'
 	@echo 'alias ccweb="cc-token-web"'
 	@echo 'alias ccweb-stop="cc-token-web-stop"'
+	@echo 'alias cchud="cc-token-monitor hud"'
+	@echo 'alias cchud-stop="cc-token-monitor hud-stop"'
+
+# HUD (macOS Swift 悬浮窗)
+hud-build:
+	@echo "Building CC Token Monitor HUD..."
+	@cd hud && swift build -c release
+	@echo "✓ HUD build complete: hud/.build/release/cc-token-monitor-hud"
+
+hud-install: hud-build
+	@echo "Installing HUD..."
+	@install -m 755 hud/.build/release/cc-token-monitor-hud $(BINDIR)/
+	@echo "✓ HUD installed! Run: cc-token-monitor-hud"
+
+hud-run:
+	@cd hud && swift run
+
+hud-clean:
+	@cd hud && rm -rf .build/
 
 test:
 	@echo "Running tests..."

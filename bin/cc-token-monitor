@@ -323,6 +323,92 @@ start_watch() {
     done
 }
 
+# HUD 相关函数
+HUD_PID_FILE="$STATS_DIR/hud.pid"
+
+start_hud() {
+    # 检查是否为 macOS
+    if [[ "$OSTYPE" != "darwin"* ]]; then
+        echo -e "${RED}错误: HUD 悬浮窗仅支持 macOS${NC}"
+        return 1
+    fi
+
+    # 检查是否已运行
+    if [[ -f "$HUD_PID_FILE" ]]; then
+        local pid=$(cat "$HUD_PID_FILE" 2>/dev/null)
+        if ps -p "$pid" &>/dev/null; then
+            echo -e "${YELLOW}HUD 已在运行中 (PID: $pid)${NC}"
+            echo "运行 'cc-token-monitor hud-stop' 停止"
+            return 0
+        fi
+    fi
+
+    # 查找 HUD 可执行文件
+    local hud_bin=""
+    local script_dir="$(cd "$(dirname "$0")" && pwd)"
+
+    if [[ -f "$script_dir/../hud/.build/release/cc-token-monitor-hud" ]]; then
+        # 开发模式
+        hud_bin="$script_dir/../hud/.build/release/cc-token-monitor-hud"
+    elif [[ -f "$HOME/projects/cc-token-monitor/hud/.build/release/cc-token-monitor-hud" ]]; then
+        # 项目目录
+        hud_bin="$HOME/projects/cc-token-monitor/hud/.build/release/cc-token-monitor-hud"
+    elif [[ -f "/usr/local/bin/cc-token-monitor-hud" ]]; then
+        hud_bin="/usr/local/bin/cc-token-monitor-hud"
+    elif command -v cc-token-monitor-hud &>/dev/null; then
+        hud_bin="$(command -v cc-token-monitor-hud)"
+    else
+        echo -e "${RED}错误: 未找到 cc-token-monitor-hud${NC}"
+        echo "请先构建 HUD:"
+        echo "  cd $(dirname "$0")/.. && make hud-build"
+        return 1
+    fi
+
+    echo -e "${GREEN}启动 HUD 悬浮窗...${NC}"
+    nohup "$hud_bin" &>/dev/null &
+    local pid=$!
+    echo $pid > "$HUD_PID_FILE"
+
+    sleep 1
+    if ps -p "$pid" &>/dev/null; then
+        echo -e "${GREEN}✓ HUD 已启动 (PID: $pid)${NC}"
+        echo "点击菜单栏图标控制显示/隐藏"
+        echo "运行 'cc-token-monitor hud-stop' 停止"
+    else
+        echo -e "${RED}✗ HUD 启动失败${NC}"
+        rm -f "$HUD_PID_FILE"
+        return 1
+    fi
+}
+
+stop_hud() {
+    if [[ -f "$HUD_PID_FILE" ]]; then
+        local pid=$(cat "$HUD_PID_FILE" 2>/dev/null)
+        if [[ -n "$pid" ]] && ps -p "$pid" &>/dev/null; then
+            kill "$pid" 2>/dev/null
+            echo -e "${GREEN}✓ HUD 已停止${NC}"
+        else
+            echo -e "${YELLOW}HUD 未运行${NC}"
+        fi
+        rm -f "$HUD_PID_FILE"
+    else
+        # 尝试查找并杀死进程
+        local pids=$(pgrep -f "cc-token-monitor-hud" 2>/dev/null)
+        if [[ -n "$pids" ]]; then
+            echo "$pids" | xargs kill 2>/dev/null
+            echo -e "${GREEN}✓ HUD 已停止${NC}"
+        else
+            echo -e "${YELLOW}HUD 未运行${NC}"
+        fi
+    fi
+}
+
+restart_hud() {
+    stop_hud
+    sleep 1
+    start_hud
+}
+
 show_help() {
 cat << 'EOF'
 用法: cc-token-monitor [命令] [参数]
@@ -345,10 +431,17 @@ cat << 'EOF'
     ccsum                   显示历史汇总
     ccsessions/ccsess       显示今日会话明细
     ccproj                  显示按项目汇总
+    cchud                   启动悬浮窗 (macOS)
+    cchud-stop              停止悬浮窗 (macOS)
 
 Web 界面命令:
     ccweb [端口]            启动 Web 界面 (默认端口 8866)
     ccweb-stop [端口]       停止 Web 界面
+
+macOS 悬浮窗命令 (仅 macOS):
+    hud                     启动悬浮窗 (实时监控)
+    hud-stop                停止悬浮窗
+    hud-restart             重启悬浮窗
 
 配置文件:
     ~/.claude/token-stats/config/prices.json
@@ -370,5 +463,13 @@ case "${1:-help}" in
     config) show_config ;;
     price) query_price "$2" ;;
     help|--help|-h) show_help ;;
-    *) echo -e "${RED}未知命令: $1${NC}"; show_help; exit 1 ;;
+    *)
+        # 检查是否为 hud 相关命令
+        case "$1" in
+            hud) start_hud ;;
+            hud-stop) stop_hud ;;
+            hud-restart) restart_hud ;;
+            *) echo -e "${RED}未知命令: $1${NC}"; show_help; exit 1 ;;
+        esac
+        ;;
 esac
