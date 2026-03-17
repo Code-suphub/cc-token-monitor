@@ -100,6 +100,46 @@ class StatusBarAppDelegate: NSObject, NSApplicationDelegate {
         button.font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .regular)
     }
 
+    // MARK: - Window Positioning
+
+    /// 计算窗口显示位置（在状态栏按钮下方）
+    private func calculateWindowPosition(for window: NSWindow, parentButton: NSStatusBarButton) -> NSPoint {
+        let windowSize = window.frame.size
+
+        // 获取状态栏按钮在屏幕上的位置
+        let buttonFrame = parentButton.window?.convertToScreen(parentButton.frame) ?? parentButton.frame
+
+        // 计算位置：按钮下方居中
+        let x = buttonFrame.midX - windowSize.width / 2
+        let y = buttonFrame.minY - windowSize.height - 4 // 4pt 间距
+
+        // 确保不超出屏幕边界
+        guard let screen = parentButton.window?.screen ?? NSScreen.main else {
+            return NSPoint(x: x, y: y)
+        }
+
+        let screenFrame = screen.visibleFrame
+        var finalX = x
+        var finalY = y
+
+        // 右边界检查
+        if finalX + windowSize.width > screenFrame.maxX {
+            finalX = screenFrame.maxX - windowSize.width - 8
+        }
+
+        // 左边界检查
+        if finalX < screenFrame.minX {
+            finalX = screenFrame.minX + 8
+        }
+
+        // 下边界检查（如果下方空间不足，显示在按钮上方）
+        if finalY < screenFrame.minY {
+            finalY = buttonFrame.maxY + 4
+        }
+
+        return NSPoint(x: finalX, y: finalY)
+    }
+
     // MARK: - Actions
 
     @objc private func handleClick(_ sender: NSStatusBarButton) {
@@ -140,9 +180,14 @@ class StatusBarAppDelegate: NSObject, NSApplicationDelegate {
             window.title = "Token Monitor"
             window.contentView = hostingView
             window.isReleasedWhenClosed = false
-            window.center()
 
             detailWindow = window
+        }
+
+        // 计算并设置窗口位置
+        if let button = statusItem.button, let window = detailWindow {
+            let position = calculateWindowPosition(for: window, parentButton: button)
+            window.setFrameOrigin(position)
         }
 
         detailWindow?.makeKeyAndOrderFront(nil)
@@ -173,9 +218,14 @@ class StatusBarAppDelegate: NSObject, NSApplicationDelegate {
             window.title = "设置"
             window.contentView = hostingView
             window.isReleasedWhenClosed = false
-            window.center()
 
             configWindow = window
+        }
+
+        // 计算并设置窗口位置
+        if let button = statusItem.button, let window = configWindow {
+            let position = calculateWindowPosition(for: window, parentButton: button)
+            window.setFrameOrigin(position)
         }
 
         configWindow?.makeKeyAndOrderFront(nil)
