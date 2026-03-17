@@ -342,15 +342,20 @@ start_hud() {
         return 1
     fi
 
-    # 检查是否已运行
-    if [[ -f "$HUD_PID_FILE" ]]; then
-        local pid=$(cat "$HUD_PID_FILE" 2>/dev/null)
-        if ps -p "$pid" &>/dev/null; then
-            echo -e "${YELLOW}HUD 已在运行中 (PID: $pid)${NC}"
-            echo "运行 'cc-token-monitor hud-stop' 停止"
-            return 0
-        fi
+    # 检查是否已有 HUD 进程在运行（通过 pgrep 检测所有可能的进程）
+    local existing_pids=$(pgrep -f "cc-token-monitor-hud" 2>/dev/null)
+    if [[ -n "$existing_pids" ]]; then
+        local count=$(echo "$existing_pids" | wc -l | tr -d ' ')
+        echo -e "${YELLOW}检测到 $count 个 HUD 进程已在运行${NC}"
+        echo "$existing_pids" | while read -r pid; do
+            echo "  PID: $pid"
+        done
+        echo "运行 'cc-token-monitor hud-restart' 重启 或 'cc-token-monitor hud-stop' 停止"
+        return 0
     fi
+
+    # 清理可能存在的旧 PID 文件
+    rm -f "$HUD_PID_FILE"
 
     # 查找 HUD 可执行文件
     local hud_bin=""
@@ -391,24 +396,41 @@ start_hud() {
 }
 
 stop_hud() {
+    local killed=0
+
+    # 首先尝试停止 PID 文件中的进程
     if [[ -f "$HUD_PID_FILE" ]]; then
         local pid=$(cat "$HUD_PID_FILE" 2>/dev/null)
         if [[ -n "$pid" ]] && ps -p "$pid" &>/dev/null; then
             kill "$pid" 2>/dev/null
-            echo -e "${GREEN}✓ HUD 已停止${NC}"
-        else
-            echo -e "${YELLOW}HUD 未运行${NC}"
+            sleep 0.5
+            # 如果还在运行，强制杀死
+            if ps -p "$pid" &>/dev/null; then
+                kill -9 "$pid" 2>/dev/null
+            fi
+            ((killed++))
         fi
         rm -f "$HUD_PID_FILE"
+    fi
+
+    # 查找并停止所有其他 HUD 进程
+    local pids=$(pgrep -f "cc-token-monitor-hud" 2>/dev/null)
+    if [[ -n "$pids" ]]; then
+        echo "$pids" | while read -r pid; do
+            kill "$pid" 2>/dev/null
+            sleep 0.2
+            # 强制杀死如果还在运行
+            if ps -p "$pid" &>/dev/null; then
+                kill -9 "$pid" 2>/dev/null
+            fi
+            ((killed++))
+        done
+    fi
+
+    if [[ $killed -gt 0 ]]; then
+        echo -e "${GREEN}✓ HUD 已停止 (共 $killed 个进程)${NC}"
     else
-        # 尝试查找并杀死进程
-        local pids=$(pgrep -f "cc-token-monitor-hud" 2>/dev/null)
-        if [[ -n "$pids" ]]; then
-            echo "$pids" | xargs kill 2>/dev/null
-            echo -e "${GREEN}✓ HUD 已停止${NC}"
-        else
-            echo -e "${YELLOW}HUD 未运行${NC}"
-        fi
+        echo -e "${YELLOW}HUD 未运行${NC}"
     fi
 }
 

@@ -58,15 +58,21 @@ struct ConfigView: View {
 
                     // 状态栏显示内容（只在状态栏模式下有效）
                     section("状态栏显示") {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Picker("", selection: statusBarDisplayBinding) {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Picker("内容", selection: statusBarDisplayBinding) {
                                 Text("Tokens").tag(StatusBarDisplay.tokens)
                                 Text("Cost").tag(StatusBarDisplay.cost)
                                 Text("两者").tag(StatusBarDisplay.both)
                             }
                             .pickerStyle(.segmented)
 
-                            Text("选择状态栏中显示的内容")
+                            Picker("格式", selection: statusBarDetailLevelBinding) {
+                                Text("简洁 (T/C)").tag(StatusBarDetailLevel.simple)
+                                Text("详细 (I/O/C)").tag(StatusBarDetailLevel.detailed)
+                            }
+                            .pickerStyle(.segmented)
+
+                            Text(statusBarDisplayDescription)
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                                 .padding(.top, 4)
@@ -143,7 +149,7 @@ struct ConfigView: View {
             .padding(.bottom, 8)
         }
         .frame(width: 300, height: 450)
-        .alert("需要重启", isPresented: $showRestartAlert) {
+        .confirmationDialog("需要重启", isPresented: $showRestartAlert, titleVisibility: .visible) {
             Button("立即重启") {
                 restartApp()
             }
@@ -204,7 +210,16 @@ struct ConfigView: View {
             get: { configManager.config.displayMode },
             set: { newValue in
                 configManager.update { $0.displayMode = newValue }
-                showRestartAlert = true
+                // 禁用窗口自动关闭，避免弹窗被关闭
+                NotificationCenter.default.post(name: .init("DisableAutoClose"), object: true)
+                // 延迟显示弹窗，避免与 Picker 动画冲突
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    showRestartAlert = true
+                    // 5秒后自动重新启用自动关闭（防止弹窗异常未关闭时一直禁用）
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
+                        NotificationCenter.default.post(name: .init("DisableAutoClose"), object: false)
+                    }
+                }
             }
         )
     }
@@ -214,6 +229,15 @@ struct ConfigView: View {
             get: { configManager.config.statusBarDisplay },
             set: { newValue in
                 configManager.update { $0.statusBarDisplay = newValue }
+            }
+        )
+    }
+
+    private var statusBarDetailLevelBinding: Binding<StatusBarDetailLevel> {
+        Binding(
+            get: { configManager.config.statusBarDetailLevel },
+            set: { newValue in
+                configManager.update { $0.statusBarDetailLevel = newValue }
             }
         )
     }
@@ -271,6 +295,24 @@ struct ConfigView: View {
             return "悬浮窗：在屏幕显示可移动的浮动窗口"
         case .statusBar:
             return "状态栏：在菜单栏显示简洁信息"
+        }
+    }
+
+    private var statusBarDisplayDescription: String {
+        let display = configManager.config.statusBarDisplay
+        let detail = configManager.config.statusBarDetailLevel
+
+        switch (display, detail) {
+        case (.tokens, .simple):
+            return "示例：T:49.4M（显示总 tokens）"
+        case (.tokens, .detailed):
+            return "示例：I:45M O:4.4M（显示 input/output 细分）"
+        case (.cost, _):
+            return "示例：C:39.53（只显示预估成本）"
+        case (.both, .simple):
+            return "示例：T:49.4M C:39.53"
+        case (.both, .detailed):
+            return "示例：I:45M O:4.4M C:39.53"
         }
     }
 

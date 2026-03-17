@@ -45,6 +45,7 @@ class FloatingWindowController: NSObject {
     private var timer: Timer?
     private var detailWindow: NSWindow?
     private var configWindow: NSWindow?
+    private var isShowingDialog = false  // 是否正在显示弹窗，用于禁用自动关闭
 
     func start() {
         NSApp.setActivationPolicy(.accessory)
@@ -132,6 +133,14 @@ class FloatingWindowController: NSObject {
             name: NSWindow.didResignKeyNotification,
             object: nil
         )
+
+        // 监听弹窗状态变化
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleDialogNotification(_:)),
+            name: NSNotification.Name("DisableAutoClose"),
+            object: nil
+        )
     }
 
     private func startTimer() {
@@ -148,6 +157,11 @@ class FloatingWindowController: NSObject {
     }
 
     @objc private func windowResignedKey(_ notification: Notification) {
+        // 如果正在显示弹窗，不关闭窗口
+        if isShowingDialog {
+            return
+        }
+
         // 当面板窗口失去焦点时关闭它们
         if let resignedWindow = notification.object as? NSWindow {
             // 如果是面板窗口失去焦点，直接关闭
@@ -167,6 +181,12 @@ class FloatingWindowController: NSObject {
                     }
                 }
             }
+        }
+    }
+
+    @objc private func handleDialogNotification(_ notification: Notification) {
+        if let disable = notification.object as? Bool {
+            isShowingDialog = disable
         }
     }
 

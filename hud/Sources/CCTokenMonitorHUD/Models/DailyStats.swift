@@ -30,6 +30,16 @@ struct DailyStats: Codable, Identifiable {
     var formattedCost: String {
         String(format: "%.2f", totalCost)
     }
+
+    /// 格式化后的 input tokens
+    var formattedInputTokens: String {
+        formatNumber(inputTokens)
+    }
+
+    /// 格式化后的 output tokens
+    var formattedOutputTokens: String {
+        formatNumber(outputTokens)
+    }
 }
 
 /// 项目级别的统计

@@ -10,6 +10,7 @@ class StatusBarAppDelegate: NSObject, NSApplicationDelegate {
     // 面板窗口
     private var detailWindow: NSWindow?
     private var configWindow: NSWindow?
+    private var isShowingDialog = false  // 是否正在显示弹窗，用于禁用自动关闭
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // 设置为 accessory 模式（不显示 dock 图标）
@@ -26,6 +27,14 @@ class StatusBarAppDelegate: NSObject, NSApplicationDelegate {
             self,
             selector: #selector(windowResignedKey),
             name: NSWindow.didResignKeyNotification,
+            object: nil
+        )
+
+        // 监听弹窗状态变化
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleDialogNotification(_:)),
+            name: NSNotification.Name("DisableAutoClose"),
             object: nil
         )
     }
@@ -88,20 +97,39 @@ class StatusBarAppDelegate: NSObject, NSApplicationDelegate {
         let config = ConfigManager.shared.config
         let stats = dataService.todayStats
 
+        // 根据详细程度设置显示格式
+        let detailLevel = config.statusBarDetailLevel
+
         switch config.statusBarDisplay {
         case .tokens:
-            let text = stats?.formattedTokens ?? "--"
-            button.title = text
+            if detailLevel == .detailed {
+                // 详细模式：显示 I/O 细分
+                let input = stats?.formattedInputTokens ?? "--"
+                let output = stats?.formattedOutputTokens ?? "--"
+                button.title = "I:\(input) O:\(output)"
+            } else {
+                // 简单模式：只显示总量
+                let text = stats?.formattedTokens ?? "--"
+                button.title = "T:\(text)"
+            }
 
         case .cost:
             let text = stats?.formattedCost ?? "--"
-            button.title = "\(text)"
+            button.title = "C:\(text)"
 
         case .both:
-            // 两行显示效果：Tokens | Cost
-            let tokens = stats?.formattedTokens ?? "--"
-            let cost = stats?.formattedCost ?? "--"
-            button.title = "\(tokens) | \(cost)"
+            if detailLevel == .detailed {
+                // 详细模式：I:45M O:4.4M C:39.53
+                let input = stats?.formattedInputTokens ?? "--"
+                let output = stats?.formattedOutputTokens ?? "--"
+                let cost = stats?.formattedCost ?? "--"
+                button.title = "I:\(input) O:\(output) C:\(cost)"
+            } else {
+                // 简单模式：T:49.4M C:39.53
+                let tokens = stats?.formattedTokens ?? "--"
+                let cost = stats?.formattedCost ?? "--"
+                button.title = "T:\(tokens) C:\(cost)"
+            }
         }
 
         // 设置字体
@@ -250,6 +278,11 @@ class StatusBarAppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func windowResignedKey(_ notification: Notification) {
+        // 如果正在显示弹窗，不关闭窗口
+        if isShowingDialog {
+            return
+        }
+
         // 当面板窗口失去焦点时关闭它们
         if let resignedWindow = notification.object as? NSWindow {
             if resignedWindow == detailWindow || resignedWindow == configWindow {
@@ -257,6 +290,14 @@ class StatusBarAppDelegate: NSObject, NSApplicationDelegate {
                     resignedWindow.close()
                 }
             }
+        }
+    }
+
+    // MARK: - Dialog Helpers
+
+    @objc private func handleDialogNotification(_ notification: Notification) {
+        if let disable = notification.object as? Bool {
+            isShowingDialog = disable
         }
     }
 }

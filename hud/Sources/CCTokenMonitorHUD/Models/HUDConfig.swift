@@ -11,7 +11,13 @@ enum DisplayMode: String, Codable, CaseIterable {
 enum StatusBarDisplay: String, Codable, CaseIterable {
     case tokens = "tokens"       // 只显示 tokens
     case cost = "cost"           // 只显示 cost
-    case both = "both"           // 显示两行（token + cost）
+    case both = "both"           // 显示 token + cost
+}
+
+/// 状态栏显示详细程度
+enum StatusBarDetailLevel: String, Codable, CaseIterable {
+    case simple = "simple"       // 简单：T:49.4M | C:39.53
+    case detailed = "detailed"   // 详细：I:45M | O:4.4M | C:39.53
 }
 
 /// HUD 配置模型
@@ -33,6 +39,7 @@ struct HUDConfig: Codable {
 
     // 状态栏配置
     var statusBarDisplay: StatusBarDisplay = .both
+    var statusBarDetailLevel: StatusBarDetailLevel = .simple  // simple: T/C, detailed: I/O/C
 
     // 行为
     var refreshInterval: Int = 30
