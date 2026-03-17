@@ -13,11 +13,13 @@ struct DetailView: View {
             Divider()
             trendView
             Divider()
+            modelStatsView
+            Divider()
             sessionView
             Spacer()
         }
         .padding()
-        .frame(width: 300, height: 400)
+        .frame(width: 320, height: 520)
     }
 
     private var headerView: some View {
@@ -87,6 +89,35 @@ struct DetailView: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .frame(height: 120)
+            }
+        }
+    }
+
+    private var modelStatsView: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("🤖 模型分布")
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            let models = dataService.todayModelStats()
+            if models.isEmpty {
+                Text("暂无数据")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            } else {
+                VStack(spacing: 4) {
+                    ForEach(models.prefix(5)) { model in
+                        HStack {
+                            Text(model.name)
+                                .font(.caption)
+                                .lineLimit(1)
+                            Spacer()
+                            Text(model.formattedTokens)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
             }
         }
     }

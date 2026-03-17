@@ -45,6 +45,15 @@ class DataService: ObservableObject {
         recentStats = loadRecentStats(days: 7)
     }
 
+    /// 获取今日按模型统计的数据
+    func todayModelStats() -> [ModelStats] {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        let todayString = formatter.string(from: Date())
+
+        return loadModelStats(for: todayString)
+    }
+
     /// 加载今日统计数据
     private func loadTodayStats() -> DailyStats? {
         let formatter = DateFormatter()
@@ -114,6 +123,43 @@ class DataService: ObservableObject {
         }
 
         return stats.reversed()  // 日期从早到晚
+    }
+
+    /// 加载指定日期按模型统计的数据
+    private func loadModelStats(for dateString: String) -> [ModelStats] {
+        let fileURL = statsDir.appendingPathComponent("\(dateString).csv")
+
+        guard FileManager.default.fileExists(atPath: fileURL.path),
+              let content = try? String(contentsOf: fileURL, encoding: .utf8) else {
+            return []
+        }
+
+        // 按模型聚合数据
+        var modelData: [String: (input: Int, output: Int)] = [:]
+
+        let lines = content.components(separatedBy: .newlines)
+        for line in lines {
+            let parts = line.components(separatedBy: "|")
+            guard parts.count >= 7 else { continue }
+
+            let model = parts[2] // model 在第3列
+
+            if let input = Int(parts[3]),
+               let output = Int(parts[4]) {
+                if var existing = modelData[model] {
+                    existing.input += input
+                    existing.output += output
+                    modelData[model] = existing
+                } else {
+                    modelData[model] = (input: input, output: output)
+                }
+            }
+        }
+
+        // 转换为 ModelStats 数组，按总 tokens 排序
+        return modelData.map { (model, data) in
+            ModelStats(name: model, inputTokens: data.input, outputTokens: data.output)
+        }.sorted { $0.totalTokens > $1.totalTokens }
     }
 
     /// 计算环比变化

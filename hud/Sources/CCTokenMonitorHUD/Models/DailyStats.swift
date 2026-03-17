@@ -44,6 +44,22 @@ struct ProjectStats: Identifiable {
     }
 }
 
+/// 模型级别的统计
+struct ModelStats: Identifiable {
+    let id = UUID()
+    let name: String
+    let inputTokens: Int
+    let outputTokens: Int
+
+    var totalTokens: Int {
+        inputTokens + outputTokens
+    }
+
+    var formattedTokens: String {
+        formatNumber(totalTokens)
+    }
+}
+
 /// 格式化数字为 K/M 格式
 func formatNumber(_ num: Int) -> String {
     if num >= 1_000_000 {
