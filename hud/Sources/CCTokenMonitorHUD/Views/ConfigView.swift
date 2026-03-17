@@ -162,13 +162,30 @@ struct ConfigView: View {
             return
         }
 
+        // 获取当前进程名
+        let processName = (executablePath as NSString).lastPathComponent
+
         // 创建一个后台任务来重启应用
+        // 1. 先杀掉所有同名进程（包括当前进程）
+        // 2. 等待进程完全退出
+        // 3. 然后启动新进程
+        let script = """
+        (
+            sleep 0.3
+            # 杀掉所有 HUD 进程（包括当前进程）
+            pgrep -x "\(processName)" | xargs kill -9 2>/dev/null || true
+            sleep 0.5
+            # 确保所有进程都被杀掉
+            pgrep -x "\(processName)" | xargs kill -9 2>/dev/null || true
+            sleep 0.2
+            # 启动新进程
+            nohup "\(executablePath)" > /dev/null 2>&1 &
+        ) &
+        """
+
         let task = Process()
         task.launchPath = "/bin/bash"
-        task.arguments = [
-            "-c",
-            "sleep 1 && \"\(executablePath)\" &"
-        ]
+        task.arguments = ["-c", script]
 
         do {
             try task.run()
@@ -176,7 +193,7 @@ struct ConfigView: View {
             print("Failed to restart: \(error)")
         }
 
-        // 退出当前应用
+        // 立即退出当前应用（让后台脚本来清理和重启）
         NSApplication.shared.terminate(nil)
     }
 
