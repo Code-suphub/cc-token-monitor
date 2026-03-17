@@ -4,6 +4,7 @@ import Charts
 struct DetailView: View {
     @ObservedObject var dataService: DataService
     @Environment(\.dismiss) var dismiss
+    var onShowConfig: (() -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -27,6 +28,17 @@ struct DetailView: View {
             Text("Token Monitor")
                 .font(.headline)
             Spacer()
+
+            // 设置按钮
+            if let onShowConfig = onShowConfig {
+                Button(action: onShowConfig) {
+                    Image(systemName: "gear")
+                        .font(.system(size: 14))
+                }
+                .buttonStyle(.borderless)
+                .help("设置")
+            }
+
             Button("关闭") {
                 dismiss()
             }
