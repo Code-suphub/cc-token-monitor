@@ -90,52 +90,24 @@ process_file() {
 
     local project_path=$(dirname "$file" | sed "s|$PROJECTS_DIR/||" | sed 's|/.*||')
 
-    # 按日期分组输出，使用消息实际时间而非文件修改时间
-    tail -n +"$start_line" "$file" 2>/dev/null | grep '"type":"assistant"' | \
-    jq -r --arg project "$project_path" --arg sid "$session_id" '
-        select(.message.usage) |
-        (.timestamp // .message.timestamp // now | split("T")[0]) as $date |
-        "\($date)|\($sid)|\($project)|\(.message.model // "unknown")|\(.message.usage.input_tokens // 0)|\(.message.usage.output_tokens // 0)|\(.message.usage.cache_creation_input_tokens // 0)|\(.message.usage.cache_read_input_tokens // 0)"
-    ' 2>/dev/null >> "$stat_file"
-
-    echo "$total_lines" > "$count_file"
-
-    # 按消息实际日期分别更新每日汇总
-    update_daily_summary_by_date "$session_id"
-    echo $((total_lines - start_line + 1))
-}
-
-update_daily_summary() {
-    local session_id="$1"
-    local date_str="$2"
-    local session_file="$STATS_DIR/sessions/${session_id}.csv"
-    [[ ! -f "$session_file" ]] && return 1
-    local daily_file="$STATS_DIR/daily/${date_str}.csv"
-
-    awk -F'|' '{printf "%s|%s|%s|%d|%d|%d|%d\n", $1,$2,$3,$4,$5,$6,$7}' "$session_file" > "$daily_file.tmp"
-    cat "$daily_file.tmp" >> "$daily_file" 2>/dev/null
-    sort -u "$daily_file" > "$daily_file.new" && mv "$daily_file.new" "$daily_file"
-    rm -f "$daily_file.tmp"
-}
-
-# 按消息实际日期分别更新每日汇总
-update_daily_summary_by_date() {
-    local session_id="$1"
-    local session_file="$STATS_DIR/sessions/${session_id}.csv"
-    [[ ! -f "$session_file" ]] && return 1
-
-    # 按日期分组：格式为 date|session_id|project|model|input|output|cache_create|cache_read
-    # 使用 mktemp 创建临时目录来存储按日期分组的文件
+    # 创建临时目录按日期存储新增记录
     local tmp_dir=$(mktemp -d)
 
-    awk -F'|' -v tmpdir="$tmp_dir" '{
+    # 按日期分组输出，使用消息实际时间而非文件修改时间
+    tail -n +"$start_line" "$file" 2>/dev/null | grep '"type":"assistant"' | \
+    jq -r --arg project "$project_path" --arg sid "$session_id" --arg tmpdir "$tmp_dir" '
+        select(.message.usage) |
+        (.timestamp // .message.timestamp // now | split("T")[0]) as $date |
+        # 同时输出到 session 文件和按日期分组的临时文件
+        "\($date)|\($sid)|\($project)|\(.message.model // "unknown")|\(.message.usage.input_tokens // 0)|\(.message.usage.output_tokens // 0)|\(.message.usage.cache_creation_input_tokens // 0)|\(.message.usage.cache_read_input_tokens // 0)"
+    ' 2>/dev/null | tee -a "$stat_file" | awk -F'|' -v tmpdir="$tmp_dir" '{
         d = $1
         # 去掉日期列，保持原有格式写入对应日期的文件
         outfile = tmpdir "/" d ".txt"
         printf "%s|%s|%s|%d|%d|%d|%d\n", $2,$3,$4,$5,$6,$7,$8 >> outfile
-    }' "$session_file"
+    }'
 
-    # 去重并移动到 daily 目录
+    # 将新增记录追加到对应日期的 daily 文件
     for tmp_file in "$tmp_dir"/*.txt; do
         [[ -f "$tmp_file" ]] || continue
         local date_str=$(basename "$tmp_file" .txt)
@@ -145,6 +117,9 @@ update_daily_summary_by_date() {
     done
 
     rm -rf "$tmp_dir"
+    echo "$total_lines" > "$count_file"
+
+    echo $((total_lines - start_line + 1))
 }
 
 init_process() {
