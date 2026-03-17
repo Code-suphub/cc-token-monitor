@@ -20,6 +20,14 @@ class StatusBarAppDelegate: NSObject, NSApplicationDelegate {
 
         // 开始数据刷新
         startTimer()
+
+        // 监听窗口失去焦点事件，关闭面板
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(windowResignedKey),
+            name: NSWindow.didResignKeyNotification,
+            object: nil
+        )
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -239,5 +247,16 @@ class StatusBarAppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func quit() {
         NSApplication.shared.terminate(nil)
+    }
+
+    @objc private func windowResignedKey(_ notification: Notification) {
+        // 当面板窗口失去焦点时关闭它们
+        if let resignedWindow = notification.object as? NSWindow {
+            if resignedWindow == detailWindow || resignedWindow == configWindow {
+                DispatchQueue.main.async {
+                    resignedWindow.close()
+                }
+            }
+        }
     }
 }

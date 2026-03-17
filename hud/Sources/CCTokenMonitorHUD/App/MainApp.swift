@@ -148,15 +148,40 @@ class FloatingWindowController: NSObject {
     }
 
     @objc private func windowResignedKey(_ notification: Notification) {
-        // 如果失去焦点的不是我们的窗口，关闭详情和配置窗口
-        if let resignedWindow = notification.object as? NSWindow,
-           resignedWindow == window {
-            // 悬浮窗失去焦点时，延迟关闭详情窗口
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-                if self?.window?.isKeyWindow == false {
-                    self?.detailWindow?.close()
-                    self?.configWindow?.close()
+        // 当面板窗口失去焦点时关闭它们
+        if let resignedWindow = notification.object as? NSWindow {
+            // 如果是面板窗口失去焦点，直接关闭
+            if resignedWindow == detailWindow || resignedWindow == configWindow {
+                DispatchQueue.main.async {
+                    resignedWindow.close()
                 }
+                return
+            }
+
+            // 如果主悬浮窗失去焦点，关闭所有面板
+            if resignedWindow == window {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                    if self?.window?.isKeyWindow == false {
+                        self?.detailWindow?.close()
+                        self?.configWindow?.close()
+                    }
+                }
+            }
+        }
+    }
+
+    /// 处理外部点击 - 当点击发生在面板外部时关闭面板
+    func handleOutsideClick() {
+        // 如果面板打开，检查是否需要关闭
+        if let detailWindow = detailWindow, detailWindow.isVisible {
+            // 如果点击不在面板内，关闭面板
+            if !detailWindow.isKeyWindow {
+                detailWindow.close()
+            }
+        }
+        if let configWindow = configWindow, configWindow.isVisible {
+            if !configWindow.isKeyWindow {
+                configWindow.close()
             }
         }
     }
