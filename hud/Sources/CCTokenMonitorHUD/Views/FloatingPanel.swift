@@ -1,8 +1,8 @@
 import SwiftUI
 import Charts
 
-/// L2 详细面板 - Glassmorphism 设计
-struct L2DetailPanel: View {
+/// 悬浮详细面板 - Glassmorphism 设计（备用）
+struct FloatingPanel: View {
     @StateObject private var dataService = DataService()
     let onClose: () -> Void
 

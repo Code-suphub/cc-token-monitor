@@ -199,7 +199,7 @@ class StatusBarAppDelegate: NSObject, NSApplicationDelegate {
 
         if detailWindow == nil {
             let hostingView = NSHostingView(
-                rootView: DetailView(
+                rootView: MenuBarPanel(
                     dataService: dataService,
                     onShowConfig: { [weak self] in
                         self?.showConfig()
@@ -236,7 +236,7 @@ class StatusBarAppDelegate: NSObject, NSApplicationDelegate {
 
         if configWindow == nil {
             let hostingView = NSHostingView(
-                rootView: ConfigView(
+                rootView: SettingsPanel(
                     dataService: dataService,
                     onBack: { [weak self] in
                         self?.configWindow?.close()

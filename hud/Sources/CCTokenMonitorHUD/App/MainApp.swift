@@ -257,7 +257,7 @@ class FloatingWindowController: NSObject {
         }
 
         let hostingView = NSHostingView(
-            rootView: DetailView(
+            rootView: MenuBarPanel(
                 dataService: dataService,
                 onShowConfig: { [weak self] in
                     self?.showConfig()
@@ -300,7 +300,7 @@ class FloatingWindowController: NSObject {
         }
 
         let hostingView = NSHostingView(
-            rootView: ConfigView(
+            rootView: SettingsPanel(
                 dataService: dataService,
                 onBack: { [weak self] in
                     self?.configWindow?.close()

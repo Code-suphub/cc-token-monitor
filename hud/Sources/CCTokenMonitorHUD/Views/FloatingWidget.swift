@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// L1 悬浮迷你窗 - Glassmorphism 设计
-struct L1MiniWidget: View {
+/// 悬浮迷你窗 - Glassmorphism 设计
+struct FloatingWidget: View {
     @StateObject private var dataService = DataService()
     @State private var isPressed = false
 

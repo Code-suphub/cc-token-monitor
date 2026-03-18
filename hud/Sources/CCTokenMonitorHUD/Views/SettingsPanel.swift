@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// 配置面板视图 - Glassmorphism 设计
-struct ConfigView: View {
+/// 设置面板 - Glassmorphism 设计
+struct SettingsPanel: View {
     @ObservedObject var configManager = ConfigManager.shared
     @ObservedObject var dataService: DataService
     var onBack: () -> Void
