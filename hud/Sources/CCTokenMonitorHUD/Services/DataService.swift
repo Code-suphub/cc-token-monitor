@@ -144,6 +144,11 @@ class DataService: ObservableObject {
 
             let model = parts[2] // model 在第3列
 
+            // 过滤无效模型名
+            guard !model.isEmpty,
+                  model != "model",
+                  !model.hasPrefix("<") else { continue }
+
             if let input = Int(parts[3]),
                let output = Int(parts[4]) {
                 if var existing = modelData[model] {

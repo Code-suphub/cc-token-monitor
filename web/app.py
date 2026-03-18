@@ -44,6 +44,11 @@ def load_daily_data(target_date=None):
                     continue
 
                 session_id, project, model = parts[0], parts[1], parts[2]
+
+                # 过滤无效模型名
+                if not model or model == "model" or model.startswith("<"):
+                    continue
+
                 try:
                     input_tok = int(parts[3])
                     output_tok = int(parts[4])
@@ -388,155 +393,711 @@ INDEX_TEMPLATE = '''
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            /* 背景色 - 深邃宇宙黑 */
+            --bg-primary: #050508;
+            --bg-secondary: #0a0a0f;
+            --bg-tertiary: #0f0f16;
+
+            /* 玻璃效果 */
+            --glass-bg: rgba(16, 18, 30, 0.6);
+            --glass-border: rgba(99, 102, 241, 0.1);
+            --glass-border-hover: rgba(99, 102, 241, 0.3);
+            --glass-blur: blur(20px) saturate(150%);
+
+            /* 强调色 - 霓虹极光 */
+            --accent-cyan: #22d3ee;
+            --accent-violet: #a78bfa;
+            --accent-fuchsia: #e879f9;
+            --accent-emerald: #34d399;
+            --accent-amber: #fbbf24;
+            --accent-rose: #fb7185;
+            --accent-indigo: #818cf8;
+            --accent-teal: #2dd4bf;
+
+            /* 渐变色 */
+            --gradient-primary: linear-gradient(135deg, #22d3ee 0%, #818cf8 50%, #e879f9 100%);
+            --gradient-border: linear-gradient(135deg, rgba(34, 211, 238, 0.5), rgba(168, 85, 247, 0.3), rgba(232, 121, 249, 0.5));
+            --gradient-glow: radial-gradient(ellipse at center, rgba(34, 211, 238, 0.2) 0%, transparent 70%);
+
+            /* 文字 */
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --text-tertiary: #64748b;
+
+            /* 阴影 */
+            --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.3);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -2px rgba(0, 0, 0, 0.4);
+            --shadow-glow: 0 0 40px rgba(34, 211, 238, 0.2), 0 0 80px rgba(168, 85, 247, 0.1);
+            --shadow-inner: inset 0 1px 1px rgba(255, 255, 255, 0.03);
+
+            /* 间距 */
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            --radius-xl: 24px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background: #0d1117;
-            color: #c9d1d9;
-            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+            background:
+                /* 顶部极光光晕 */
+                radial-gradient(ellipse 100% 60% at 50% 0%, rgba(34, 211, 238, 0.12) 0%, transparent 50%),
+                radial-gradient(ellipse 80% 40% at 20% 10%, rgba(168, 85, 247, 0.08) 0%, transparent 40%),
+                radial-gradient(ellipse 80% 40% at 80% 20%, rgba(232, 121, 249, 0.06) 0%, transparent 40%),
+                /* 底部反光 */
+                radial-gradient(ellipse 100% 40% at 50% 100%, rgba(34, 211, 238, 0.05) 0%, transparent 40%),
+                /* 主体深色背景 */
+                linear-gradient(180deg, var(--bg-primary) 0%, var(--bg-secondary) 50%, var(--bg-tertiary) 100%);
+            color: var(--text-primary);
+            padding: 24px;
+            min-height: 100vh;
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            position: relative;
+            overflow-x: hidden;
         }
-        .container { max-width: 1400px; margin: 0 auto; }
-        h1 {
+
+        /* 动态网格背景 */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image:
+                linear-gradient(rgba(99, 102, 241, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(99, 102, 241, 0.03) 1px, transparent 1px);
+            background-size: 60px 60px;
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        /* 流动光效动画 */
+        @keyframes aurora {
+            0%, 100% {
+                opacity: 0.5;
+                transform: translateX(-50%) translateY(-50%) rotate(0deg);
+            }
+            50% {
+                opacity: 0.8;
+                transform: translateX(-30%) translateY(-30%) rotate(180deg);
+            }
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 16px;
+        }
+
+        /* 头部标题 - 精致渐变 */
+        .header {
             text-align: center;
-            color: #58a6ff;
-            margin-bottom: 30px;
-            font-size: 28px;
+            margin-bottom: 40px;
+            position: relative;
         }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 300px;
+            height: 100px;
+            background: var(--gradient-glow);
+            filter: blur(60px);
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        h1 {
+            font-size: 36px;
+            font-weight: 700;
+            letter-spacing: -0.03em;
+            background: linear-gradient(135deg, #f1f5f9 0%, #38bdf8 50%, #818cf8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 8px;
+            position: relative;
+        }
+
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 14px;
+            font-weight: 400;
+            letter-spacing: 0.02em;
+        }
+
+        /* 按钮样式 - 玻璃拟态 */
         .back-btn {
             position: fixed;
-            top: 20px;
-            left: 20px;
-            background: #21262d;
-            color: #c9d1d9;
-            border: 1px solid #30363d;
-            padding: 10px 20px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 14px;
+            top: 24px;
+            left: 24px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 18px;
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-blur);
+            -webkit-backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-md);
+            color: var(--text-secondary);
+            font-size: 13px;
+            font-weight: 500;
             text-decoration: none;
+            cursor: pointer;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: var(--shadow-sm);
         }
-        .back-btn:hover { background: #30363d; }
+
+        .back-btn::before {
+            content: '←';
+            font-size: 14px;
+            transition: transform 0.25s ease;
+        }
+
+        .back-btn:hover {
+            border-color: var(--glass-border-hover);
+            color: var(--accent-cyan);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md), 0 0 20px rgba(56, 189, 248, 0.15);
+        }
+
+        .back-btn:hover::before {
+            transform: translateX(-3px);
+        }
+
         .refresh-btn {
             position: fixed;
-            top: 20px;
-            right: 20px;
-            background: #238636;
-            color: white;
-            border: none;
+            top: 24px;
+            right: 24px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
             padding: 10px 20px;
-            border-radius: 6px;
+            background: linear-gradient(135deg, rgba(52, 211, 153, 0.15), rgba(52, 211, 153, 0.05));
+            backdrop-filter: var(--glass-blur);
+            -webkit-backdrop-filter: var(--glass-blur);
+            border: 1px solid rgba(52, 211, 153, 0.25);
+            border-radius: var(--radius-md);
+            color: var(--accent-emerald);
+            font-size: 13px;
+            font-weight: 500;
             cursor: pointer;
-            font-size: 14px;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: var(--shadow-sm);
         }
-        .refresh-btn:hover { background: #2ea043; }
+
+        .refresh-btn::before {
+            content: '↻';
+            font-size: 14px;
+            display: inline-block;
+            transition: transform 0.5s ease;
+        }
+
+        .refresh-btn:hover {
+            background: linear-gradient(135deg, rgba(52, 211, 153, 0.25), rgba(52, 211, 153, 0.1));
+            border-color: rgba(52, 211, 153, 0.4);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md), 0 0 25px rgba(52, 211, 153, 0.2);
+        }
+
+        .refresh-btn:hover::before {
+            transform: rotate(180deg);
+        }
+
+        /* 日期选择器 */
         .date-filter {
-            text-align: center;
-            margin-bottom: 20px;
+            display: flex;
+            justify-content: center;
+            margin-bottom: 32px;
         }
+
         .date-filter select {
-            background: #21262d;
-            color: #c9d1d9;
-            border: 1px solid #30363d;
-            padding: 8px 15px;
-            border-radius: 6px;
+            appearance: none;
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-blur);
+            -webkit-backdrop-filter: var(--glass-blur);
+            color: var(--text-primary);
+            border: 1px solid var(--glass-border);
+            padding: 12px 44px 12px 18px;
+            border-radius: var(--radius-md);
             font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            box-shadow: var(--shadow-sm), var(--shadow-inner);
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 14px center;
         }
+
+        .date-filter select:hover {
+            border-color: var(--glass-border-hover);
+            background-color: rgba(20, 22, 35, 0.7);
+        }
+
+        .date-filter select:focus {
+            outline: none;
+            border-color: var(--accent-cyan);
+            box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.1), var(--shadow-inner);
+        }
+
+        /* 统计卡片网格 */
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
             gap: 20px;
-            margin-bottom: 30px;
+            margin-bottom: 32px;
         }
+
         .stat-card {
-            background: #161b22;
-            border: 1px solid #30363d;
-            border-radius: 12px;
-            padding: 20px;
+            position: relative;
+            padding: 28px 24px;
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-blur);
+            -webkit-backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-lg);
             text-align: center;
+            transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: var(--shadow-sm), var(--shadow-inner);
+            overflow: hidden;
         }
+
+        /* 卡片顶部渐变线 */
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 20%;
+            right: 20%;
+            height: 2px;
+            background: var(--gradient-primary);
+            opacity: 0;
+            transition: all 0.35s ease;
+            border-radius: 0 0 2px 2px;
+        }
+
+        /* 卡片悬停光效 */
+        .stat-card::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(600px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(56, 189, 248, 0.06), transparent 40%);
+            opacity: 0;
+            transition: opacity 0.35s ease;
+            pointer-events: none;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-4px) scale(1.01);
+            border-color: var(--glass-border-hover);
+            box-shadow: var(--shadow-md), var(--shadow-glow);
+        }
+
+        .stat-card:hover::before {
+            opacity: 1;
+            left: 10%;
+            right: 10%;
+        }
+
+        .stat-card:hover::after {
+            opacity: 1;
+        }
+
+        /* 卡片图标 */
+        .stat-card .icon {
+            width: 40px;
+            height: 40px;
+            margin: 0 auto 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: var(--radius-md);
+            background: rgba(56, 189, 248, 0.1);
+            border: 1px solid rgba(56, 189, 248, 0.2);
+            font-size: 18px;
+            transition: all 0.35s ease;
+        }
+
+        .stat-card:nth-child(1) .icon { background: rgba(34, 211, 238, 0.12); border-color: rgba(34, 211, 238, 0.3); box-shadow: 0 0 20px rgba(34, 211, 238, 0.1); }
+        .stat-card:nth-child(2) .icon { background: rgba(168, 85, 247, 0.12); border-color: rgba(168, 85, 247, 0.3); box-shadow: 0 0 20px rgba(168, 85, 247, 0.1); }
+        .stat-card:nth-child(3) .icon { background: rgba(52, 211, 153, 0.12); border-color: rgba(52, 211, 153, 0.3); box-shadow: 0 0 20px rgba(52, 211, 153, 0.1); }
+        .stat-card:nth-child(4) .icon { background: rgba(251, 191, 36, 0.12); border-color: rgba(251, 191, 36, 0.3); box-shadow: 0 0 20px rgba(251, 191, 36, 0.1); }
+        .stat-card:nth-child(5) .icon { background: rgba(251, 113, 133, 0.12); border-color: rgba(251, 113, 133, 0.3); box-shadow: 0 0 20px rgba(251, 113, 133, 0.1); }
+
+        .stat-card:hover .icon {
+            transform: scale(1.1);
+            box-shadow: 0 0 20px rgba(56, 189, 248, 0.2);
+        }
+
         .stat-card h3 {
-            color: #8b949e;
+            color: var(--text-secondary);
             font-size: 12px;
-            margin-bottom: 10px;
+            margin-bottom: 12px;
             text-transform: uppercase;
+            letter-spacing: 1.5px;
+            font-weight: 600;
         }
+
         .stat-card .value {
+            font-family: 'SF Mono', 'JetBrains Mono', 'Fira Code', monospace;
             font-size: 28px;
-            font-weight: bold;
-            color: #58a6ff;
+            font-weight: 600;
+            color: var(--text-primary);
+            letter-spacing: -0.02em;
+            line-height: 1.2;
         }
+
+        .stat-card:nth-child(1) .value {
+            background: linear-gradient(135deg, #22d3ee, #67e8f9);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            filter: drop-shadow(0 0 8px rgba(34, 211, 238, 0.3));
+        }
+        .stat-card:nth-child(2) .value {
+            background: linear-gradient(135deg, #a78bfa, #c4b5fd);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            filter: drop-shadow(0 0 8px rgba(167, 139, 250, 0.3));
+        }
+        .stat-card:nth-child(3) .value {
+            background: linear-gradient(135deg, #34d399, #6ee7b7);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            filter: drop-shadow(0 0 8px rgba(52, 211, 153, 0.3));
+        }
+        .stat-card:nth-child(4) .value {
+            background: linear-gradient(135deg, #fbbf24, #fcd34d);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            filter: drop-shadow(0 0 8px rgba(251, 191, 36, 0.3));
+        }
+        .stat-card:nth-child(5) .value {
+            background: linear-gradient(135deg, #fb7185, #fda4af);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            filter: drop-shadow(0 0 8px rgba(251, 113, 133, 0.3));
+        }
+
         .stat-card .sub {
-            font-size: 11px;
-            color: #6e7681;
-            margin-top: 5px;
+            font-size: 12px;
+            color: var(--text-tertiary);
+            margin-top: 8px;
+            font-weight: 500;
+            letter-spacing: 0.02em;
         }
+
+        /* 图表区域 */
         .charts-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
+            grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+            gap: 24px;
+            margin-bottom: 32px;
         }
+
         .chart-card {
-            background: #161b22;
-            border: 1px solid #30363d;
-            border-radius: 12px;
-            padding: 20px;
-        }
-        .chart-card h3 {
-            color: #c9d1d9;
-            margin-bottom: 15px;
-            font-size: 16px;
-        }
-        .chart-container {
             position: relative;
-            height: 300px;
+            padding: 28px;
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-blur);
+            -webkit-backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-lg);
+            transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: var(--shadow-sm), var(--shadow-inner);
+            overflow: hidden;
         }
-        .full-width {
+
+        .chart-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 30%;
+            right: 30%;
+            height: 2px;
+            background: var(--gradient-primary);
+            opacity: 0;
+            transition: all 0.35s ease;
+        }
+
+        .chart-card:hover {
+            transform: translateY(-2px);
+            border-color: var(--glass-border-hover);
+            box-shadow: var(--shadow-md), var(--shadow-glow);
+        }
+
+        .chart-card:hover::before {
+            opacity: 1;
+            left: 15%;
+            right: 15%;
+        }
+
+        .chart-card.full-width {
             grid-column: 1 / -1;
         }
+
+        .chart-card h3 {
+            color: var(--text-primary);
+            margin-bottom: 24px;
+            font-size: 15px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            letter-spacing: -0.01em;
+        }
+
+        .chart-card h3 .icon {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(56, 189, 248, 0.1);
+            border: 1px solid rgba(56, 189, 248, 0.2);
+            border-radius: var(--radius-sm);
+            font-size: 14px;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 280px;
+        }
+
+        /* 数据表格 */
+        .data-table-container {
+            overflow: hidden;
+        }
+
         table {
             width: 100%;
-            border-collapse: collapse;
+            border-collapse: separate;
+            border-spacing: 0;
             margin-top: 10px;
         }
+
         th, td {
-            padding: 12px;
+            padding: 16px;
             text-align: left;
-            border-bottom: 1px solid #30363d;
         }
+
         th {
-            color: #8b949e;
+            color: var(--text-tertiary);
             font-weight: 600;
-            font-size: 11px;
+            font-size: 10px;
             text-transform: uppercase;
+            letter-spacing: 1.2px;
+            border-bottom: 1px solid var(--glass-border);
         }
-        td { font-size: 13px; }
-        tr:hover { background: #21262d; }
+
+        td {
+            font-size: 13px;
+            color: var(--text-secondary);
+            border-bottom: 1px solid rgba(148, 163, 184, 0.05);
+            transition: all 0.2s ease;
+        }
+
+        tr:hover td {
+            color: var(--text-primary);
+            background: rgba(56, 189, 248, 0.04);
+        }
+
         .session-link {
-            color: #58a6ff;
+            color: var(--accent-cyan);
             text-decoration: none;
             cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            position: relative;
         }
+
+        .session-link::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            width: 0;
+            height: 1px;
+            background: var(--accent-cyan);
+            transition: width 0.3s ease;
+            box-shadow: 0 0 10px var(--accent-cyan);
+        }
+
         .session-link:hover {
-            text-decoration: underline;
+            color: #7dd3fc;
         }
+
+        .session-link:hover::after {
+            width: 100%;
+        }
+
         .model-tag {
-            display: inline-block;
-            padding: 2px 8px;
-            border-radius: 4px;
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 10px;
+            border-radius: 20px;
             font-size: 11px;
-            font-weight: bold;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+            border: 1px solid;
+            transition: all 0.2s ease;
         }
-        .model-kimi { background: #388bfd33; color: #58a6ff; }
-        .model-claude { background: #a371f733; color: #bc8cff; }
-        .model-gpt { background: #3fb95033; color: #3fb950; }
-        .cost-positive { color: #3fb950; }
+
+        .model-tag:hover {
+            transform: scale(1.05);
+        }
+
+        .model-kimi {
+            background: linear-gradient(135deg, rgba(34, 211, 238, 0.15), rgba(8, 145, 178, 0.08));
+            color: #22d3ee;
+            border-color: rgba(34, 211, 238, 0.35);
+            box-shadow: 0 0 12px rgba(34, 211, 238, 0.15);
+        }
+
+        .model-claude {
+            background: linear-gradient(135deg, rgba(168, 85, 247, 0.15), rgba(124, 58, 237, 0.08));
+            color: #a78bfa;
+            border-color: rgba(168, 85, 247, 0.35);
+            box-shadow: 0 0 12px rgba(168, 85, 247, 0.15);
+        }
+
+        .model-gpt {
+            background: linear-gradient(135deg, rgba(52, 211, 153, 0.15), rgba(5, 150, 105, 0.08));
+            color: #34d399;
+            border-color: rgba(52, 211, 153, 0.35);
+            box-shadow: 0 0 12px rgba(52, 211, 153, 0.15);
+        }
+
+        .model-deepseek {
+            background: linear-gradient(135deg, rgba(232, 121, 249, 0.15), rgba(192, 38, 211, 0.08));
+            color: #e879f9;
+            border-color: rgba(232, 121, 249, 0.35);
+            box-shadow: 0 0 12px rgba(232, 121, 249, 0.15);
+        }
+
+        .model-gemini {
+            background: linear-gradient(135deg, rgba(251, 191, 36, 0.15), rgba(217, 119, 6, 0.08));
+            color: #fbbf24;
+            border-color: rgba(251, 191, 36, 0.35);
+            box-shadow: 0 0 12px rgba(251, 191, 36, 0.15);
+        }
+
+        .cost-positive {
+            color: var(--accent-emerald);
+            font-family: 'SF Mono', monospace;
+            font-weight: 600;
+        }
+
         .cache-tag {
             font-size: 10px;
-            color: #8b949e;
-            background: #21262d;
-            padding: 2px 6px;
+            color: var(--text-tertiary);
+            background: rgba(148, 163, 184, 0.12);
+            padding: 3px 8px;
             border-radius: 4px;
             margin-left: 5px;
+        }
+
+        /* 动画 */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 20px rgba(56, 189, 248, 0.1); }
+            50% { box-shadow: 0 0 40px rgba(56, 189, 248, 0.2); }
+        }
+
+        .stat-card, .chart-card {
+            animation: fadeInUp 0.6s ease backwards;
+        }
+
+        .stat-card:nth-child(1) { animation-delay: 0.05s; }
+        .stat-card:nth-child(2) { animation-delay: 0.1s; }
+        .stat-card:nth-child(3) { animation-delay: 0.15s; }
+        .stat-card:nth-child(4) { animation-delay: 0.2s; }
+        .stat-card:nth-child(5) { animation-delay: 0.25s; }
+
+        .chart-card:nth-child(1) { animation-delay: 0.3s; }
+        .chart-card:nth-child(2) { animation-delay: 0.35s; }
+
+        /* 响应式 */
+        @media (max-width: 768px) {
+            body { padding: 16px; }
+            h1 { font-size: 28px; }
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+            .charts-grid { grid-template-columns: 1fr; }
+            .chart-container { height: 240px; }
+        }
+            margin-left: 5px;
+            font-weight: 500;
+        }
+
+        /* Animations */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .stat-card {
+            animation: fadeInUp 0.5s ease backwards;
+        }
+
+        .stat-card:nth-child(1) { animation-delay: 0.05s; }
+        .stat-card:nth-child(2) { animation-delay: 0.1s; }
+        .stat-card:nth-child(3) { animation-delay: 0.15s; }
+        .stat-card:nth-child(4) { animation-delay: 0.2s; }
+        .stat-card:nth-child(5) { animation-delay: 0.25s; }
+
+        .chart-card {
+            animation: fadeInUp 0.6s ease backwards;
+            animation-delay: 0.3s;
+        }
+
+        @keyframes numberPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+        }
+
+        .stat-card .value {
+            animation: numberPulse 3s ease infinite;
         }
     </style>
 </head>
@@ -554,26 +1115,31 @@ INDEX_TEMPLATE = '''
 
         <div class="stats-grid">
             <div class="stat-card">
+                <div class="icon">⬇</div>
                 <h3>输入 Tokens</h3>
                 <div class="value" id="statInput">-</div>
                 <div class="sub">Input</div>
             </div>
             <div class="stat-card">
+                <div class="icon">⬆</div>
                 <h3>输出 Tokens</h3>
                 <div class="value" id="statOutput">-</div>
                 <div class="sub">Output</div>
             </div>
             <div class="stat-card">
+                <div class="icon">∑</div>
                 <h3>总用量</h3>
                 <div class="value" id="statTotal">-</div>
                 <div class="sub">Total</div>
             </div>
             <div class="stat-card">
+                <div class="icon">$</div>
                 <h3>预估费用</h3>
                 <div class="value" id="statCost">-</div>
                 <div class="sub">USD</div>
             </div>
             <div class="stat-card">
+                <div class="icon">◉</div>
                 <h3>会话数</h3>
                 <div class="value" id="statSessions">-</div>
                 <div class="sub">Sessions</div>
@@ -585,13 +1151,13 @@ INDEX_TEMPLATE = '''
 
         <div class="charts-grid">
             <div class="chart-card">
-                <h3>按模型统计</h3>
+                <h3><span class="icon">◧</span>按模型统计</h3>
                 <div class="chart-container">
                     <canvas id="modelChart"></canvas>
                 </div>
             </div>
             <div class="chart-card">
-                <h3>按项目统计（Top 10）</h3>
+                <h3><span class="icon">◨</span>按项目统计（Top 10）</h3>
                 <div class="chart-container">
                     <canvas id="projectChart"></canvas>
                 </div>
@@ -601,7 +1167,8 @@ INDEX_TEMPLATE = '''
         {{SESSIONS_TABLE}}
 
         <div class="chart-card full-width">
-            <h3>详细数据</h3>
+            <h3><span class="icon">☰</span>详细数据</h3>
+            <div class="data-table-container">
             <table>
                 <thead>
                     <tr>
@@ -653,61 +1220,213 @@ INDEX_TEMPLATE = '''
         document.getElementById('statCost').textContent = '$' + (stats.estimated_cost || 0).toFixed(4);
         document.getElementById('statSessions').textContent = formatNum(stats.total_sessions || 0);
 
-        // 模型饼图
+        // 模型饼图 - 霓虹渐变环形图
         function initModelChart() {
             const ctx = document.getElementById('modelChart').getContext('2d');
             const models = Object.entries(stats.models || {});
+
+            // 霓虹渐变配色方案
+            const gradientColors = [
+                createRadialGradient(ctx, '#22d3ee', '#0891b2'),
+                createRadialGradient(ctx, '#a78bfa', '#7c3aed'),
+                createRadialGradient(ctx, '#e879f9', '#c026d3'),
+                createRadialGradient(ctx, '#34d399', '#059669'),
+                createRadialGradient(ctx, '#fbbf24', '#d97706'),
+                createRadialGradient(ctx, '#fb7185', '#e11d48'),
+                createRadialGradient(ctx, '#2dd4bf', '#0d9488'),
+                createRadialGradient(ctx, '#818cf8', '#4f46e5'),
+            ];
+
+            const borderColors = [
+                '#22d3ee', '#a78bfa', '#e879f9', '#34d399',
+                '#fbbf24', '#fb7185', '#2dd4bf', '#818cf8'
+            ];
+
             new Chart(ctx, {
                 type: 'doughnut',
                 data: {
                     labels: models.map(m => m[0]),
                     datasets: [{
                         data: models.map(m => m[1].input + m[1].output),
-                        backgroundColor: ['#58a6ff', '#a371f7', '#3fb950', '#f0883e', '#f85149', '#79c0ff']
+                        backgroundColor: gradientColors.slice(0, models.length),
+                        borderColor: borderColors.slice(0, models.length),
+                        borderWidth: 2,
+                        hoverOffset: 15,
+                        hoverBorderWidth: 3,
+                        hoverBorderColor: '#ffffff',
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '65%',
+                    radius: '90%',
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                color: '#94a3b8',
+                                padding: 20,
+                                font: { size: 12, family: '-apple-system, BlinkMacSystemFont, sans-serif' },
+                                usePointStyle: true,
+                                pointStyle: 'circle',
+                                pointRadius: 6,
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(16, 18, 30, 0.9)',
+                            titleColor: '#f8fafc',
+                            bodyColor: '#94a3b8',
+                            borderColor: 'rgba(99, 102, 241, 0.2)',
+                            borderWidth: 1,
+                            padding: 12,
+                            cornerRadius: 8,
+                            displayColors: true,
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.parsed || 0;
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = ((value / total) * 100).toFixed(1);
+                                    return `${label}: ${formatNum(value)} (${percentage}%)`;
+                                }
+                            }
+                        }
+                    },
+                    animation: {
+                        animateRotate: true,
+                        animateScale: true,
+                        duration: 1500,
+                        easing: 'easeOutQuart'
+                    }
+                }
+            });
+        }
+
+        // 创建径向渐变
+        function createRadialGradient(ctx, color1, color2) {
+            const gradient = ctx.createRadialGradient(150, 150, 0, 150, 150, 150);
+            gradient.addColorStop(0, color1);
+            gradient.addColorStop(1, color2);
+            return gradient;
+        }
+
+        // 项目柱状图 - 霓虹渐变柱状图
+        function initProjectChart() {
+            const ctx = document.getElementById('projectChart').getContext('2d');
+            const projects = Object.entries(stats.projects || {})
+                .sort((a, b) => (b[1].input + b[1].output) - (a[1].input + a[1].output))
+                .slice(0, 10);
+
+            // 为每个柱子创建不同的霓虹渐变
+            const barColors = projects.map((_, i) => {
+                const gradients = [
+                    { from: '#22d3ee', to: '#0891b2' },
+                    { from: '#a78bfa', to: '#7c3aed' },
+                    { from: '#e879f9', to: '#c026d3' },
+                    { from: '#34d399', to: '#059669' },
+                    { from: '#fbbf24', to: '#d97706' },
+                    { from: '#fb7185', to: '#e11d48' },
+                    { from: '#2dd4bf', to: '#0d9488' },
+                    { from: '#818cf8', to: '#4f46e5' },
+                    { from: '#c084fc', to: '#9333ea' },
+                    { from: '#60a5fa', to: '#2563eb' },
+                ];
+                return createBarGradient(ctx, gradients[i % gradients.length].from, gradients[i % gradients.length].to);
+            });
+
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: projects.map(p => {
+                        const name = p[0].split('/').pop() || p[0];
+                        return name.length > 12 ? name.slice(0, 12) + '...' : name;
+                    }),
+                    datasets: [{
+                        label: 'Total Tokens',
+                        data: projects.map(p => p[1].input + p[1].output),
+                        backgroundColor: barColors,
+                        borderRadius: 8,
+                        borderSkipped: false,
+                        barThickness: 24,
+                        maxBarThickness: 32,
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: {
-                        legend: {
-                            position: 'bottom',
-                            labels: { color: '#c9d1d9', padding: 20 }
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(16, 18, 30, 0.9)',
+                            titleColor: '#f8fafc',
+                            bodyColor: '#94a3b8',
+                            borderColor: 'rgba(99, 102, 241, 0.2)',
+                            borderWidth: 1,
+                            padding: 12,
+                            cornerRadius: 8,
+                            callbacks: {
+                                label: function(context) {
+                                    return `Tokens: ${formatNum(context.parsed.y)}`;
+                                }
+                            }
                         }
-                    }
+                    },
+                    scales: {
+                        x: {
+                            ticks: {
+                                color: '#64748b',
+                                font: { size: 10, family: '-apple-system, BlinkMacSystemFont, sans-serif' },
+                                maxRotation: 45,
+                                minRotation: 0,
+                            },
+                            grid: {
+                                display: false,
+                                drawBorder: false,
+                            }
+                        },
+                        y: {
+                            ticks: {
+                                color: '#64748b',
+                                font: { size: 11, family: '-apple-system, BlinkMacSystemFont, sans-serif' },
+                                callback: function(value) {
+                                    return formatNum(value);
+                                }
+                            },
+                            grid: {
+                                color: 'rgba(99, 102, 241, 0.06)',
+                                drawBorder: false,
+                            },
+                            border: { display: false }
+                        }
+                    },
+                    animation: {
+                        duration: 1500,
+                        easing: 'easeOutQuart'
+                    },
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
                 }
             });
         }
 
-        // 项目柱状图
-        function initProjectChart() {
-            const ctx = document.getElementById('projectChart').getContext('2d');
-            const projects = Object.entries(stats.projects || {})
-                .sort((a, b) => (b[1].input + b[1].output) - (a[1].input + a[1].output))
-                .slice(0, 10);
-            new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: projects.map(p => {
-                        const name = p[0].split('/').pop() || p[0];
-                        return name.length > 15 ? name.slice(0, 15) + '...' : name;
-                    }),
-                    datasets: [{
-                        label: 'Total Tokens',
-                        data: projects.map(p => p[1].input + p[1].output),
-                        backgroundColor: '#58a6ff'
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: {
-                        x: { ticks: { color: '#8b949e' }, grid: { display: false } },
-                        y: { ticks: { color: '#8b949e' }, grid: { color: '#30363d' } }
-                    }
-                }
-            });
+        // 创建柱状图渐变
+        function createBarGradient(ctx, color1, color2) {
+            const gradient = ctx.createLinearGradient(0, 280, 0, 0);
+            gradient.addColorStop(0, color2 + '80');  // 底部深色带透明度
+            gradient.addColorStop(0.5, color1 + 'CC'); // 中间色
+            gradient.addColorStop(1, color1);          // 顶部亮色
+            return gradient;
+        }
+
+        // 创建径向渐变（用于饼图）
+        function createRadialGradient(ctx, color1, color2) {
+            const gradient = ctx.createRadialGradient(150, 150, 0, 150, 150, 150);
+            gradient.addColorStop(0, color1);
+            gradient.addColorStop(1, color2);
+            return gradient;
         }
 
         // 详细表格
@@ -760,22 +1479,53 @@ SESSION_TEMPLATE = '''
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --bg-primary: #050508;
+            --bg-secondary: #0a0a0f;
+            --bg-tertiary: #0f0f16;
+            --bg-card: rgba(16, 18, 30, 0.6);
+            --glass-border: rgba(99, 102, 241, 0.1);
+            --glass-border-hover: rgba(99, 102, 241, 0.3);
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --accent-cyan: #22d3ee;
+            --accent-violet: #a78bfa;
+            --accent-fuchsia: #e879f9;
+            --accent-emerald: #34d399;
+            --accent-amber: #fbbf24;
+            --accent-rose: #fb7185;
+            --glass-blur: blur(20px) saturate(150%);
+            --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.3);
+            --shadow-glow: 0 0 40px rgba(34, 211, 238, 0.2), 0 0 80px rgba(168, 85, 247, 0.1);
+        }
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background: #0d1117;
-            color: #c9d1d9;
+            background:
+                radial-gradient(ellipse 100% 60% at 50% 0%, rgba(34, 211, 238, 0.1) 0%, transparent 50%),
+                radial-gradient(ellipse 80% 40% at 20% 10%, rgba(168, 85, 247, 0.08) 0%, transparent 40%),
+                radial-gradient(ellipse 80% 40% at 80% 20%, rgba(232, 121, 249, 0.06) 0%, transparent 40%),
+                linear-gradient(180deg, var(--bg-primary) 0%, var(--bg-secondary) 50%, var(--bg-tertiary) 100%);
+            color: var(--text-primary);
             padding: 20px;
+            min-height: 100vh;
         }
         .container { max-width: 1400px; margin: 0 auto; }
         h1 {
             text-align: center;
-            color: #58a6ff;
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-violet), var(--accent-fuchsia));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
             margin-bottom: 10px;
-            font-size: 24px;
+            font-size: 26px;
+            font-weight: 700;
         }
         .subtitle {
             text-align: center;
-            color: #8b949e;
+            color: var(--text-secondary);
             font-size: 14px;
             margin-bottom: 30px;
         }
@@ -783,16 +1533,26 @@ SESSION_TEMPLATE = '''
             position: fixed;
             top: 20px;
             left: 20px;
-            background: #21262d;
-            color: #c9d1d9;
-            border: 1px solid #30363d;
+            background: var(--bg-card);
+            backdrop-filter: var(--glass-blur);
+            -webkit-backdrop-filter: var(--glass-blur);
+            color: var(--text-secondary);
+            border: 1px solid var(--glass-border);
             padding: 10px 20px;
-            border-radius: 6px;
+            border-radius: 10px;
             cursor: pointer;
             font-size: 14px;
             text-decoration: none;
+            transition: all 0.2s ease;
+            box-shadow: var(--shadow-sm);
         }
-        .back-btn:hover { background: #30363d; }
+        .back-btn:hover {
+            background: rgba(34, 211, 238, 0.1);
+            border-color: var(--glass-border-hover);
+            color: var(--accent-cyan);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-glow);
+        }
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -800,66 +1560,99 @@ SESSION_TEMPLATE = '''
             margin-bottom: 30px;
         }
         .stat-card {
-            background: #161b22;
-            border: 1px solid #30363d;
-            border-radius: 12px;
-            padding: 15px;
+            background: var(--bg-card);
+            backdrop-filter: var(--glass-blur);
+            -webkit-backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--glass-border);
+            border-radius: 14px;
+            padding: 18px 15px;
             text-align: center;
+            transition: all 0.3s ease;
+            box-shadow: var(--shadow-sm);
+        }
+        .stat-card:hover {
+            transform: translateY(-3px);
+            border-color: var(--glass-border-hover);
+            box-shadow: var(--shadow-glow);
         }
         .stat-card h3 {
-            color: #8b949e;
-            font-size: 11px;
-            margin-bottom: 8px;
+            color: var(--text-secondary);
+            font-size: 10px;
+            margin-bottom: 10px;
             text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 600;
         }
         .stat-card .value {
-            font-size: 22px;
-            font-weight: bold;
-            color: #58a6ff;
+            font-family: 'SF Mono', monospace;
+            font-size: 24px;
+            font-weight: 600;
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-violet));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            filter: drop-shadow(0 0 8px rgba(34, 211, 238, 0.3));
         }
         .stat-card .sub {
             font-size: 10px;
-            color: #6e7681;
-            margin-top: 3px;
+            color: var(--text-muted);
+            margin-top: 5px;
         }
         .chart-card {
-            background: #161b22;
-            border: 1px solid #30363d;
-            border-radius: 12px;
-            padding: 20px;
+            background: var(--bg-card);
+            backdrop-filter: var(--glass-blur);
+            -webkit-backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            padding: 24px;
             margin-bottom: 20px;
+            transition: all 0.3s ease;
+            box-shadow: var(--shadow-sm);
+        }
+        .chart-card:hover {
+            border-color: var(--glass-border-hover);
+            box-shadow: var(--shadow-glow);
         }
         .chart-card h3 {
-            color: #c9d1d9;
+            color: var(--text-primary);
             margin-bottom: 15px;
             font-size: 16px;
+            font-weight: 600;
         }
         .chart-container {
             position: relative;
             height: 350px;
         }
         .savings-box {
-            background: #23863633;
-            border: 1px solid #238636;
-            border-radius: 8px;
-            padding: 15px;
+            background: linear-gradient(135deg, rgba(52, 211, 153, 0.15), rgba(5, 150, 105, 0.08));
+            backdrop-filter: var(--glass-blur);
+            -webkit-backdrop-filter: var(--glass-blur);
+            border: 1px solid rgba(52, 211, 153, 0.25);
+            border-radius: 12px;
+            padding: 20px;
             margin-bottom: 20px;
             display: flex;
             justify-content: space-around;
             flex-wrap: wrap;
+            box-shadow: 0 0 30px rgba(52, 211, 153, 0.1);
         }
         .savings-item {
             text-align: center;
         }
         .savings-item .label {
             font-size: 12px;
-            color: #8b949e;
-            margin-bottom: 5px;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
         }
         .savings-item .value {
-            font-size: 24px;
-            font-weight: bold;
-            color: #3fb950;
+            font-family: 'SF Mono', monospace;
+            font-size: 26px;
+            font-weight: 600;
+            background: linear-gradient(135deg, var(--accent-emerald), #6ee7b7);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            filter: drop-shadow(0 0 8px rgba(52, 211, 153, 0.3));
         }
         table {
             width: 100%;
@@ -878,13 +1671,15 @@ SESSION_TEMPLATE = '''
             font-size: 10px;
             text-transform: uppercase;
         }
-        tr:hover { background: #21262d; }
+        tr:hover { background: rgba(34, 211, 238, 0.04); }
         .cache-info {
-            color: #58a6ff;
+            color: #22d3ee;
+            text-shadow: 0 0 10px rgba(34, 211, 238, 0.3);
         }
         .cache-create-highlight {
-            color: #a371f7;
+            color: #a78bfa;
             font-weight: bold;
+            text-shadow: 0 0 10px rgba(167, 139, 250, 0.3);
         }
         .msg-type-thinking, .msg-type-tool, .msg-type-text, .msg-status-thinking, .msg-status-waiting {
             display: inline-block;
@@ -969,10 +1764,11 @@ SESSION_TEMPLATE = '''
             z-index: 1001;
         }
         .cache-high {
-            color: #ff7b72;
+            color: #fb7185;
             font-weight: bold;
             cursor: help;
             position: relative;
+            text-shadow: 0 0 10px rgba(251, 113, 133, 0.3);
         }
         .cache-high:hover::after {
             content: attr(data-tooltip);
@@ -1004,20 +1800,23 @@ SESSION_TEMPLATE = '''
             z-index: 1001;
         }
         .turn-num {
-            background: #58a6ff33;
-            color: #58a6ff;
+            background: linear-gradient(135deg, rgba(34, 211, 238, 0.2), rgba(8, 145, 178, 0.1));
+            color: #22d3ee;
             padding: 2px 8px;
             border-radius: 4px;
             font-size: 11px;
+            border: 1px solid rgba(34, 211, 238, 0.2);
+            box-shadow: 0 0 10px rgba(34, 211, 238, 0.1);
         }
         .cache-note {
-            background: #21262d;
-            border: 1px solid #30363d;
+            background: rgba(16, 18, 30, 0.5);
+            border: 1px solid rgba(99, 102, 241, 0.1);
             border-radius: 8px;
             margin-bottom: 20px;
             font-size: 13px;
-            color: #8b949e;
+            color: #64748b;
             overflow: hidden;
+            backdrop-filter: blur(10px);
         }
         .cache-note-header {
             padding: 12px 15px;
@@ -1025,14 +1824,14 @@ SESSION_TEMPLATE = '''
             display: flex;
             justify-content: space-between;
             align-items: center;
-            background: #1c2128;
-            transition: background 0.2s;
+            background: rgba(16, 18, 30, 0.6);
+            transition: all 0.2s ease;
         }
         .cache-note-header:hover {
-            background: #262c36;
+            background: rgba(34, 211, 238, 0.05);
         }
         .cache-note-header h4 {
-            color: #c9d1d9;
+            color: #f8fafc;
             margin: 0;
             font-size: 14px;
             display: flex;
@@ -1040,7 +1839,7 @@ SESSION_TEMPLATE = '''
             gap: 8px;
         }
         .cache-note-toggle {
-            color: #8b949e;
+            color: #64748b;
             font-size: 12px;
             transition: transform 0.3s;
         }
@@ -1056,8 +1855,12 @@ SESSION_TEMPLATE = '''
             display: block;
         }
         .cache-hit-rate {
-            color: #3fb950;
+            background: linear-gradient(135deg, #34d399, #6ee7b7);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
             font-weight: bold;
+            filter: drop-shadow(0 0 8px rgba(52, 211, 153, 0.3));
         }
     </style>
 </head>
@@ -1251,17 +2054,29 @@ SESSION_TEMPLATE = '''
                     datasets: [{
                         label: '无缓存花费',
                         data: costComparison.map(c => c.no_cache),
-                        borderColor: '#f85149',
-                        backgroundColor: '#f8514933',
+                        borderColor: '#fb7185',
+                        backgroundColor: 'rgba(251, 113, 133, 0.15)',
+                        borderWidth: 2,
                         fill: true,
-                        tension: 0.3
+                        tension: 0.4,
+                        pointBackgroundColor: '#fb7185',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2,
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
                     }, {
                         label: '有缓存花费（实际）',
                         data: costComparison.map(c => c.with_cache),
-                        borderColor: '#3fb950',
-                        backgroundColor: '#3fb95033',
+                        borderColor: '#34d399',
+                        backgroundColor: 'rgba(52, 211, 153, 0.15)',
+                        borderWidth: 2,
                         fill: true,
-                        tension: 0.3
+                        tension: 0.4,
+                        pointBackgroundColor: '#34d399',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2,
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
                     }]
                 },
                 options: {
@@ -1270,9 +2085,22 @@ SESSION_TEMPLATE = '''
                     interaction: { intersect: false, mode: 'index' },
                     plugins: {
                         legend: {
-                            labels: { color: '#c9d1d9', font: { size: 12 } }
+                            labels: {
+                                color: '#94a3b8',
+                                font: { size: 12, family: '-apple-system, BlinkMacSystemFont, sans-serif' },
+                                usePointStyle: true,
+                                pointStyle: 'circle',
+                                pointRadius: 6,
+                            }
                         },
                         tooltip: {
+                            backgroundColor: 'rgba(16, 18, 30, 0.9)',
+                            titleColor: '#f8fafc',
+                            bodyColor: '#94a3b8',
+                            borderColor: 'rgba(99, 102, 241, 0.2)',
+                            borderWidth: 1,
+                            padding: 12,
+                            cornerRadius: 8,
                             callbacks: {
                                 afterLabel: function(context) {
                                     const idx = context.dataIndex;
@@ -1283,10 +2111,15 @@ SESSION_TEMPLATE = '''
                         }
                     },
                     scales: {
-                        x: { ticks: { color: '#8b949e' }, grid: { color: '#30363d' } },
+                        x: {
+                            ticks: { color: '#64748b', font: { size: 11 } },
+                            grid: { color: 'rgba(99, 102, 241, 0.06)', drawBorder: false },
+                            border: { display: false }
+                        },
                         y: {
-                            ticks: { color: '#8b949e', callback: v => '$' + v.toFixed(4) },
-                            grid: { color: '#30363d' }
+                            ticks: { color: '#64748b', callback: v => '$' + v.toFixed(4), font: { size: 11 } },
+                            grid: { color: 'rgba(99, 102, 241, 0.06)', drawBorder: false },
+                            border: { display: false }
                         }
                     }
                 }
@@ -1448,8 +2281,18 @@ class RequestHandler(BaseHTTPRequestHandler):
             </div>
             '''
             trend_script = '''
-            // 趋势图
+            // 趋势图 - 霓虹渐变曲线
             const trendCtx = document.getElementById('trendChart').getContext('2d');
+
+            // 创建渐变填充
+            const inputGradient = trendCtx.createLinearGradient(0, 0, 0, 400);
+            inputGradient.addColorStop(0, 'rgba(34, 211, 238, 0.25)');
+            inputGradient.addColorStop(1, 'rgba(34, 211, 238, 0.02)');
+
+            const outputGradient = trendCtx.createLinearGradient(0, 0, 0, 400);
+            outputGradient.addColorStop(0, 'rgba(167, 139, 250, 0.25)');
+            outputGradient.addColorStop(1, 'rgba(167, 139, 250, 0.02)');
+
             new Chart(trendCtx, {
                 type: 'line',
                 data: {
@@ -1457,27 +2300,73 @@ class RequestHandler(BaseHTTPRequestHandler):
                     datasets: [{
                         label: 'Input',
                         data: stats.trend.map(t => t.input),
-                        borderColor: '#58a6ff',
-                        backgroundColor: '#58a6ff33',
+                        borderColor: '#22d3ee',
+                        backgroundColor: inputGradient,
+                        borderWidth: 2,
                         fill: true,
-                        tension: 0.4
+                        tension: 0.4,
+                        pointBackgroundColor: '#22d3ee',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2,
+                        pointRadius: 3,
+                        pointHoverRadius: 5,
                     }, {
                         label: 'Output',
                         data: stats.trend.map(t => t.output),
-                        borderColor: '#a371f7',
-                        backgroundColor: '#a371f733',
+                        borderColor: '#a78bfa',
+                        backgroundColor: outputGradient,
+                        borderWidth: 2,
                         fill: true,
-                        tension: 0.4
+                        tension: 0.4,
+                        pointBackgroundColor: '#a78bfa',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2,
+                        pointRadius: 3,
+                        pointHoverRadius: 5,
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
                     interaction: { intersect: false, mode: 'index' },
-                    plugins: { legend: { labels: { color: '#c9d1d9' } } },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            align: 'end',
+                            labels: {
+                                color: '#94a3b8',
+                                font: { size: 12, family: '-apple-system, BlinkMacSystemFont, sans-serif' },
+                                usePointStyle: true,
+                                pointStyle: 'circle',
+                                pointRadius: 6,
+                                boxWidth: 8,
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(16, 18, 30, 0.9)',
+                            titleColor: '#f8fafc',
+                            bodyColor: '#94a3b8',
+                            borderColor: 'rgba(99, 102, 241, 0.2)',
+                            borderWidth: 1,
+                            padding: 12,
+                            cornerRadius: 8,
+                        }
+                    },
                     scales: {
-                        x: { ticks: { color: '#8b949e' }, grid: { color: '#30363d' } },
-                        y: { ticks: { color: '#8b949e' }, grid: { color: '#30363d' } }
+                        x: {
+                            ticks: { color: '#64748b', font: { size: 11 } },
+                            grid: { color: 'rgba(99, 102, 241, 0.06)', drawBorder: false },
+                            border: { display: false }
+                        },
+                        y: {
+                            ticks: {
+                                color: '#64748b',
+                                callback: v => formatNum(v),
+                                font: { size: 11 }
+                            },
+                            grid: { color: 'rgba(99, 102, 241, 0.06)', drawBorder: false },
+                            border: { display: false }
+                        }
                     }
                 }
             });

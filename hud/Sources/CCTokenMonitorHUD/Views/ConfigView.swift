@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 配置面板视图
+/// 配置面板视图 - Glassmorphism 设计
 struct ConfigView: View {
     @ObservedObject var configManager = ConfigManager.shared
     @ObservedObject var dataService: DataService
@@ -8,56 +8,80 @@ struct ConfigView: View {
 
     @State private var showRestartAlert = false
 
+    // 配色方案
+    private let accentColor = Color(hex: "58a6ff")
+    private let purpleColor = Color(hex: "a371f7")
+    private let greenColor = Color(hex: "3fb950")
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 0) {
             // 头部
-            HStack {
+            HStack(spacing: 12) {
                 Button(action: onBack) {
                     HStack(spacing: 4) {
                         Image(systemName: "chevron.left")
+                            .font(.system(size: 12, weight: .semibold))
                         Text("返回")
+                            .font(.system(size: 13, weight: .medium))
                     }
+                    .foregroundColor(accentColor)
                 }
+                .buttonStyle(.plain)
 
                 Spacer()
 
                 Text("设置")
-                    .font(.headline)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(.white)
 
                 Spacer()
 
                 // 占位保持平衡
                 Text("返回")
+                    .font(.system(size: 13, weight: .medium))
                     .opacity(0)
             }
-            .padding(.horizontal)
-            .padding(.top)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .background(
+                LinearGradient(
+                    colors: [
+                        Color(hex: "1a1d29").opacity(0.9),
+                        Color(hex: "151821").opacity(0.95)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
 
             Divider()
+                .background(Color.white.opacity(0.08))
 
             // 配置内容
-            ScrollView {
+            ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 20) {
                     // 显示模式
-                    section("显示模式") {
-                        VStack(alignment: .leading, spacing: 8) {
+                    configSection("显示模式", icon: "display", color: accentColor) {
+                        VStack(alignment: .leading, spacing: 10) {
                             Picker("", selection: displayModeBinding) {
                                 Text("悬浮窗").tag(DisplayMode.floating)
                                 Text("状态栏").tag(DisplayMode.statusBar)
                             }
                             .pickerStyle(.segmented)
+                            .colorMultiply(accentColor)
 
                             Text(displayModeDescription)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                                .font(.system(size: 11))
+                                .foregroundColor(.white.opacity(0.4))
                                 .padding(.top, 4)
                         }
                     }
 
                     Divider()
+                        .background(Color.white.opacity(0.06))
 
                     // 状态栏显示内容（只在状态栏模式下有效）
-                    section("状态栏显示") {
+                    configSection("状态栏显示", icon: "textformat", color: purpleColor) {
                         VStack(alignment: .leading, spacing: 12) {
                             Picker("内容", selection: statusBarDisplayBinding) {
                                 Text("Tokens").tag(StatusBarDisplay.tokens)
@@ -73,16 +97,17 @@ struct ConfigView: View {
                             .pickerStyle(.segmented)
 
                             Text(statusBarDisplayDescription)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                                .font(.system(size: 11))
+                                .foregroundColor(.white.opacity(0.4))
                                 .padding(.top, 4)
                         }
                     }
 
                     Divider()
+                        .background(Color.white.opacity(0.06))
 
                     // 刷新间隔
-                    section("刷新间隔") {
+                    configSection("刷新间隔", icon: "arrow.clockwise", color: greenColor) {
                         VStack(alignment: .leading, spacing: 8) {
                             Picker("", selection: refreshIntervalBinding) {
                                 Text("10秒").tag(10)
@@ -95,60 +120,122 @@ struct ConfigView: View {
                     }
 
                     Divider()
+                        .background(Color.white.opacity(0.06))
 
                     // 悬浮窗选项（只在悬浮窗模式下有效）
-                    section("悬浮窗选项") {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Toggle("显示 Tokens", isOn: showTokensBinding)
-                            Toggle("显示 Cost", isOn: showCostBinding)
-                            Toggle("显示环比", isOn: showComparisonBinding)
+                    configSection("悬浮窗选项", icon: "eye", color: accentColor) {
+                        VStack(alignment: .leading, spacing: 10) {
+                            CustomToggle("显示 Tokens", isOn: showTokensBinding)
+                            CustomToggle("显示 Cost", isOn: showCostBinding)
+                            CustomToggle("显示环比", isOn: showComparisonBinding)
                         }
                     }
 
                     Divider()
+                        .background(Color.white.opacity(0.06))
 
                     // 数据
-                    section("数据") {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Button("刷新数据") {
+                    configSection("数据", icon: "externaldrive", color: purpleColor) {
+                        VStack(alignment: .leading, spacing: 10) {
+                            ActionButton("刷新数据", icon: "arrow.clockwise") {
                                 dataService.refreshData()
                             }
 
-                            Button("打开数据目录") {
+                            ActionButton("打开数据目录", icon: "folder") {
                                 openDataDirectory()
                             }
                         }
                     }
 
                     Divider()
+                        .background(Color.white.opacity(0.06))
 
                     // 关于
-                    section("关于") {
-                        VStack(alignment: .leading, spacing: 4) {
+                    configSection("关于", icon: "info.circle", color: greenColor) {
+                        VStack(alignment: .leading, spacing: 6) {
                             Text("CC Token Monitor HUD")
-                                .font(.headline)
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(.white)
                             Text("版本 1.1.0")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                                .font(.system(size: 11))
+                                .foregroundColor(.white.opacity(0.4))
                         }
                     }
                 }
-                .padding(.horizontal)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 16)
             }
 
-            Spacer()
+            Divider()
+                .background(Color.white.opacity(0.08))
 
             // 底部提示
-            HStack {
+            HStack(spacing: 6) {
                 Image(systemName: "info.circle.fill")
-                    .foregroundColor(.blue)
+                    .font(.system(size: 10))
+                    .foregroundColor(accentColor)
                 Text("显示模式更改需要重启应用生效")
-                    .font(.caption)
+                    .font(.system(size: 10))
+                    .foregroundColor(.white.opacity(0.4))
             }
-            .padding(.horizontal)
-            .padding(.bottom, 8)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(
+                LinearGradient(
+                    colors: [
+                        Color(hex: "151821").opacity(0.95),
+                        Color(hex: "1a1d29").opacity(0.9)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
         }
-        .frame(width: 300, height: 450)
+        .frame(width: 300, height: 480)
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(.ultraThinMaterial)
+                .background(
+                    RoundedRectangle(cornerRadius: 20)
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color(hex: "1e2330").opacity(0.95),
+                                    Color(hex: "14161f").opacity(0.98)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                )
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 20)
+                .strokeBorder(
+                    LinearGradient(
+                        colors: [
+                            accentColor.opacity(0.4),
+                            purpleColor.opacity(0.2),
+                            accentColor.opacity(0.3)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1.5
+                )
+        )
+        .shadow(
+            color: accentColor.opacity(0.12),
+            radius: 20,
+            x: 0,
+            y: 8
+        )
+        .shadow(
+            color: .black.opacity(0.4),
+            radius: 12,
+            x: 0,
+            y: 4
+        )
         .confirmationDialog("需要重启", isPresented: $showRestartAlert, titleVisibility: .visible) {
             Button("立即重启") {
                 restartApp()
@@ -281,10 +368,17 @@ struct ConfigView: View {
     // MARK: - Helpers
 
     @ViewBuilder
-    private func section(_ title: String, @ViewBuilder content: () -> some View) -> some View {
+    private func configSection(_ title: String, icon: String, color: Color, @ViewBuilder content: () -> some View) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(title)
-                .font(.headline)
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.system(size: 11))
+                    .foregroundColor(color)
+                Text(title)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.5))
+                    .tracking(0.3)
+            }
             content()
         }
     }
