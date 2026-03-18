@@ -88,13 +88,36 @@ macOS 专用实时监控悬浮窗应用。
   - `Services/`: DataService.swift (读取 CSV 数据)
   - `Models/`: DailyStats.swift, HUDConfig.swift
 
-#### 3. Python Web 服务 (`web/app.py`)
+#### 3. Python Web 服务 (`web/`)
 
-基于 http.server 的轻量级 Web 界面。
+基于 http.server 的轻量级 Web 界面，采用模块化架构。
 
 - **端口**: 默认 8866
 - **启动**: `cc-token-web` 或 `python3 web/app.py 8866`
 - **功能**: 统计卡片、趋势图、模型分布饼图、项目柱状图
+
+**模块架构**:
+
+```
+web/
+├── app.py              # 187 行 - HTTP 路由和请求处理
+├── config.py           # 路径和配置常量
+├── data_service.py     # 数据加载、解析、统计逻辑
+├── template_engine.py  # 简易模板引擎
+├── utils/
+│   └── pricing.py      # 价格查询和成本计算
+├── templates/
+│   ├── index.html      # 首页模板
+│   └── session.html    # 会话详情页模板
+└── static/
+    └── style.css       # 共享样式表
+```
+
+**职责分离**:
+- `app.py`: 纯 HTTP 层，只负责路由和响应组装
+- `data_service.py`: 数据层，处理 CSV/JSONL 解析和统计聚合
+- `pricing.py`: 工具层，模型价格查询和成本计算
+- `template_engine.py`: 视图层，模板加载和变量替换
 
 ### 配置文件
 
@@ -151,6 +174,64 @@ let statsDir = FileManager.default.homeDirectoryForCurrentUser
 
 刷新间隔: 默认 30 秒 (`refresh_interval` 可配置)
 
+### Web 开发指南
+
+#### 修改前端样式
+
+编辑 `web/static/style.css`，刷新浏览器即可生效：
+
+```bash
+# 修改 CSS 变量（颜色、间距等）
+vi web/static/style.css
+```
+
+#### 修改页面结构
+
+编辑对应模板文件：
+
+```bash
+# 首页布局
+vi web/templates/index.html
+
+# 会话详情页
+vi web/templates/session.html
+```
+
+#### 添加新 API 端点
+
+示例：添加按周统计 API
+
+1. **在 `data_service.py` 添加数据逻辑**:
+```python
+def get_weekly_stats() -> dict:
+    # 实现周统计逻辑
+    ...
+```
+
+2. **在 `app.py` 添加路由和处理函数**:
+```python
+def do_GET(self):
+    routes = {
+        '/': self.handle_index,
+        '/api/weekly': self.handle_weekly,  # 新增
+    }
+
+def handle_weekly(self, query):
+    stats = get_weekly_stats()
+    self._send_response(200, json.dumps(stats).encode(), 'application/json')
+```
+
+#### 添加新模型价格
+
+编辑 `web/utils/pricing.py`:
+
+```python
+MODEL_PRICES = {
+    'new-model': {'input': 1.0, 'output': 2.0},
+    # ... 现有模型
+}
+```
+
 ## 快捷别名
 
 建议添加到 `~/.zshrc`:
@@ -177,3 +258,11 @@ alias cchud-stop="cc-token-monitor hud-stop"
 3. **HUD 仅 macOS**: Swift HUD 组件使用 Swift Charts (macOS 13+) 和 SwiftUI
 4. **Web 无依赖**: Python Web 服务使用标准库，无第三方依赖
 5. **数据目录**: 所有数据存储在用户 home 目录下的 `~/.claude/token-stats/`
+
+### Web 模块开发注意事项
+
+1. **模块循环导入**: `config.py` 是最底层模块，不要让它导入其他模块
+2. **模板变量**: 使用 `{{VAR_NAME}}` 格式，在 `render_template()` 中传递
+3. **静态文件**: 通过 `/static/` 路径访问，自动从 `web/static/` 目录提供
+4. **数据缓存**: 当前每次请求都重新读取 CSV，高并发时考虑添加缓存
+5. **错误处理**: 数据文件可能不存在，使用 `os.path.exists()` 检查

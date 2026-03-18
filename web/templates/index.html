@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{TITLE}}</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>{{TITLE}}</h1>
+        {{BACK_BUTTON}}
+        <button class="refresh-btn" onclick="location.reload()">刷新数据</button>
+
+        <div class="date-filter">
+            <select id="dateSelect" onchange="filterByDate()">
+                <option value="">全部日期</option>
+            </select>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="icon">⬇</div>
+                <h3>输入 Tokens</h3>
+                <div class="value" id="statInput">-</div>
+                <div class="sub">Input</div>
+            </div>
+            <div class="stat-card">
+                <div class="icon">⬆</div>
+                <h3>输出 Tokens</h3>
+                <div class="value" id="statOutput">-</div>
+                <div class="sub">Output</div>
+            </div>
+            <div class="stat-card">
+                <div class="icon">∑</div>
+                <h3>总用量</h3>
+                <div class="value" id="statTotal">-</div>
+                <div class="sub">Total</div>
+            </div>
+            <div class="stat-card">
+                <div class="icon">$</div>
+                <h3>预估费用</h3>
+                <div class="value" id="statCost">-</div>
+                <div class="sub">USD</div>
+            </div>
+            <div class="stat-card">
+                <div class="icon">◉</div>
+                <h3>会话数</h3>
+                <div class="value" id="statSessions">-</div>
+                <div class="sub">Sessions</div>
+            </div>
+            <!-- 监控天数 - 仅全部日期视图显示 -->
+            <div class="stat-card" id="daysCard" style="display:none">
+                <div class="icon">📅</div>
+                <h3>监控天数</h3>
+                <div class="value" id="statTotalDays">-</div>
+                <div class="sub">Days</div>
+            </div>
+        </div>
+
+        <!-- 趋势图 - 仅全部日期视图显示 -->
+        <div class="chart-card full-width" id="trendChartCard" style="display:none">
+            <h3><span class="icon">📈</span>Token 使用趋势（最近30天）</h3>
+            <div class="chart-container">
+                <canvas id="trendChart"></canvas>
+            </div>
+        </div>
+
+        <div class="charts-grid">
+            <div class="chart-card">
+                <h3><span class="icon">◧</span>按模型统计</h3>
+                <div class="chart-container">
+                    <canvas id="modelChart"></canvas>
+                </div>
+            </div>
+            <div class="chart-card">
+                <h3><span class="icon">◨</span>按项目统计（Top 10）</h3>
+                <div class="chart-container">
+                    <canvas id="projectChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- 会话列表 - 仅单日视图显示 -->
+        <div class="chart-card full-width" id="sessionsTableCard" style="display:none">
+            <h3><span class="icon">📋</span>会话列表（按Token消耗排序）</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>会话ID</th>
+                        <th>项目</th>
+                        <th>模型</th>
+                        <th>Input</th>
+                        <th>Output</th>
+                        <th>Cache Read</th>
+                        <th>总计</th>
+                    </tr>
+                </thead>
+                <tbody id="sessionsTableBody"></tbody>
+            </table>
+        </div>
+
+        <div class="chart-card full-width">
+            <h3><span class="icon">☰</span>详细数据</h3>
+            <div class="data-table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>模型</th>
+                        <th>输入 Tokens</th>
+                        <th>输出 Tokens</th>
+                        <th>总计</th>
+                        <th>预估费用</th>
+                    </tr>
+                </thead>
+                <tbody id="detailTable"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        const stats = {{STATS_JSON}};
+        const isSingleDate = {{IS_SINGLE_DATE}};
+
+        function formatNum(num) {
+            if (num >= 1000000) return (num / 1000000).toFixed(2) + 'M';
+            if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+            return num.toString();
+        }
+
+        // 填充日期选择器
+        const dateSelect = document.getElementById('dateSelect');
+        const selectedDate = '{{SELECTED_DATE}}';
+
+        // 加载所有可用日期
+        fetch('/api/dates')
+            .then(r => r.json())
+            .then(dates => {
+                dates.forEach(date => {
+                    const opt = document.createElement('option');
+                    opt.value = date;
+                    opt.textContent = date;
+                    if (date === selectedDate) {
+                        opt.selected = true;
+                    }
+                    dateSelect.appendChild(opt);
+                });
+            });
+
+        // 更新统计卡片
+        document.getElementById('statInput').textContent = formatNum(stats.total_input || 0);
+        document.getElementById('statOutput').textContent = formatNum(stats.total_output || 0);
+        document.getElementById('statTotal').textContent = formatNum(stats.total_tokens || 0);
+        document.getElementById('statCost').textContent = '$' + (stats.estimated_cost || 0).toFixed(4);
+        document.getElementById('statSessions').textContent = formatNum(stats.total_sessions || 0);
+
+        // 根据视图类型显示/隐藏元素
+        if (isSingleDate) {
+            // 单日视图：显示会话列表
+            document.getElementById('sessionsTableCard').style.display = 'block';
+            initSessionsTable();
+        } else {
+            // 全部日期视图：显示监控天数和趋势图
+            document.getElementById('daysCard').style.display = 'block';
+            document.getElementById('statTotalDays').textContent = stats.total_days || 0;
+            document.getElementById('trendChartCard').style.display = 'block';
+            initTrendChart();
+        }
+
+        // 初始化会话列表（单日视图）
+        function initSessionsTable() {
+            const tbody = document.getElementById('sessionsTableBody');
+            const sessions = stats.sessions || [];
+            tbody.innerHTML = sessions.map(s => `
+                <tr>
+                    <td><a href="/session?id=${s.session_id}" class="session-link">${s.session_id.substring(0, 20)}...</a></td>
+                    <td>${s.project}</td>
+                    <td>${s.model}</td>
+                    <td>${s.input.toLocaleString()}</td>
+                    <td>${s.output.toLocaleString()}</td>
+                    <td>${s.cache_read.toLocaleString()}</td>
+                    <td>${s.total.toLocaleString()}</td>
+                </tr>
+            `).join('');
+        }
+
+        // 初始化趋势图（全部日期视图）
+        function initTrendChart() {
+            const ctx = document.getElementById('trendChart').getContext('2d');
+
+            const inputGradient = ctx.createLinearGradient(0, 0, 0, 400);
+            inputGradient.addColorStop(0, 'rgba(34, 211, 238, 0.25)');
+            inputGradient.addColorStop(1, 'rgba(34, 211, 238, 0.02)');
+
+            const outputGradient = ctx.createLinearGradient(0, 0, 0, 400);
+            outputGradient.addColorStop(0, 'rgba(167, 139, 250, 0.25)');
+            outputGradient.addColorStop(1, 'rgba(167, 139, 250, 0.02)');
+
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: stats.trend.map(t => t.date.slice(5)),
+                    datasets: [{
+                        label: 'Input',
+                        data: stats.trend.map(t => t.input),
+                        borderColor: '#22d3ee',
+                        backgroundColor: inputGradient,
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4,
+                        pointBackgroundColor: '#22d3ee',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2,
+                        pointRadius: 3,
+                        pointHoverRadius: 5,
+                    }, {
+                        label: 'Output',
+                        data: stats.trend.map(t => t.output),
+                        borderColor: '#a78bfa',
+                        backgroundColor: outputGradient,
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4,
+                        pointBackgroundColor: '#a78bfa',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2,
+                        pointRadius: 3,
+                        pointHoverRadius: 5,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { intersect: false, mode: 'index' },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            align: 'end',
+                            labels: {
+                                color: '#94a3b8',
+                                font: { size: 12, family: '-apple-system, BlinkMacSystemFont, sans-serif' },
+                                usePointStyle: true,
+                                pointStyle: 'circle',
+                                pointRadius: 6,
+                                boxWidth: 8,
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(16, 18, 30, 0.9)',
+                            titleColor: '#f8fafc',
+                            bodyColor: '#94a3b8',
+                            borderColor: 'rgba(99, 102, 241, 0.2)',
+                            borderWidth: 1,
+                            padding: 12,
+                            cornerRadius: 8,
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: '#64748b', font: { size: 11 } },
+                            grid: { color: 'rgba(99, 102, 241, 0.06)', drawBorder: false },
+                            border: { display: false }
+                        },
+                        y: {
+                            ticks: {
+                                color: '#64748b',
+                                callback: v => formatNum(v),
+                                font: { size: 11 }
+                            },
+                            grid: { color: 'rgba(99, 102, 241, 0.06)', drawBorder: false },
+                            border: { display: false }
+                        }
+                    }
+                }
+            });
+        }
+
+        // 模型饼图 - 霓虹渐变环形图
+        function initModelChart() {
+            const ctx = document.getElementById('modelChart').getContext('2d');
+            const models = Object.entries(stats.models || {});
+
+            // 霓虹渐变配色方案
+            const gradientColors = [
+                createRadialGradient(ctx, '#22d3ee', '#0891b2'),
+                createRadialGradient(ctx, '#a78bfa', '#7c3aed'),
+                createRadialGradient(ctx, '#e879f9', '#c026d3'),
+                createRadialGradient(ctx, '#34d399', '#059669'),
+                createRadialGradient(ctx, '#fbbf24', '#d97706'),
+                createRadialGradient(ctx, '#fb7185', '#e11d48'),
+                createRadialGradient(ctx, '#2dd4bf', '#0d9488'),
+                createRadialGradient(ctx, '#818cf8', '#4f46e5'),
+            ];
+
+            const borderColors = [
+                '#22d3ee', '#a78bfa', '#e879f9', '#34d399',
+                '#fbbf24', '#fb7185', '#2dd4bf', '#818cf8'
+            ];
+
+            new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: models.map(m => m[0]),
+                    datasets: [{
+                        data: models.map(m => m[1].input + m[1].output),
+                        backgroundColor: gradientColors.slice(0, models.length),
+                        borderColor: borderColors.slice(0, models.length),
+                        borderWidth: 2,
+                        hoverOffset: 15,
+                        hoverBorderWidth: 3,
+                        hoverBorderColor: '#ffffff',
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '65%',
+                    radius: '90%',
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                color: '#94a3b8',
+                                padding: 20,
+                                font: { size: 12, family: '-apple-system, BlinkMacSystemFont, sans-serif' },
+                                usePointStyle: true,
+                                pointStyle: 'circle',
+                                pointRadius: 6,
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(16, 18, 30, 0.9)',
+                            titleColor: '#f8fafc',
+                            bodyColor: '#94a3b8',
+                            borderColor: 'rgba(99, 102, 241, 0.2)',
+                            borderWidth: 1,
+                            padding: 12,
+                            cornerRadius: 8,
+                            displayColors: true,
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.parsed || 0;
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = ((value / total) * 100).toFixed(1);
+                                    return `${label}: ${formatNum(value)} (${percentage}%)`;
+                                }
+                            }
+                        }
+                    },
+                    animation: {
+                        animateRotate: true,
+                        animateScale: true,
+                        duration: 1500,
+                        easing: 'easeOutQuart'
+                    }
+                }
+            });
+        }
+
+        // 创建径向渐变
+        function createRadialGradient(ctx, color1, color2) {
+            const gradient = ctx.createRadialGradient(150, 150, 0, 150, 150, 150);
+            gradient.addColorStop(0, color1);
+            gradient.addColorStop(1, color2);
+            return gradient;
+        }
+
+        // 项目柱状图 - 霓虹渐变柱状图
+        function initProjectChart() {
+            const ctx = document.getElementById('projectChart').getContext('2d');
+            const projects = Object.entries(stats.projects || {})
+                .sort((a, b) => (b[1].input + b[1].output) - (a[1].input + a[1].output))
+                .slice(0, 10);
+
+            // 为每个柱子创建不同的霓虹渐变
+            const barColors = projects.map((_, i) => {
+                const gradients = [
+                    { from: '#22d3ee', to: '#0891b2' },
+                    { from: '#a78bfa', to: '#7c3aed' },
+                    { from: '#e879f9', to: '#c026d3' },
+                    { from: '#34d399', to: '#059669' },
+                    { from: '#fbbf24', to: '#d97706' },
+                    { from: '#fb7185', to: '#e11d48' },
+                    { from: '#2dd4bf', to: '#0d9488' },
+                    { from: '#818cf8', to: '#4f46e5' },
+                    { from: '#c084fc', to: '#9333ea' },
+                    { from: '#60a5fa', to: '#2563eb' },
+                ];
+                return createBarGradient(ctx, gradients[i % gradients.length].from, gradients[i % gradients.length].to);
+            });
+
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: projects.map(p => {
+                        const name = p[0].split('/').pop() || p[0];
+                        return name.length > 12 ? name.slice(0, 12) + '...' : name;
+                    }),
+                    datasets: [{
+                        label: 'Total Tokens',
+                        data: projects.map(p => p[1].input + p[1].output),
+                        backgroundColor: barColors,
+                        borderRadius: 8,
+                        borderSkipped: false,
+                        barThickness: 24,
+                        maxBarThickness: 32,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(16, 18, 30, 0.9)',
+                            titleColor: '#f8fafc',
+                            bodyColor: '#94a3b8',
+                            borderColor: 'rgba(99, 102, 241, 0.2)',
+                            borderWidth: 1,
+                            padding: 12,
+                            cornerRadius: 8,
+                            callbacks: {
+                                label: function(context) {
+                                    return `Tokens: ${formatNum(context.parsed.y)}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: {
+                                color: '#64748b',
+                                font: { size: 10, family: '-apple-system, BlinkMacSystemFont, sans-serif' },
+                                maxRotation: 45,
+                                minRotation: 0,
+                            },
+                            grid: {
+                                display: false,
+                                drawBorder: false,
+                            }
+                        },
+                        y: {
+                            ticks: {
+                                color: '#64748b',
+                                font: { size: 11, family: '-apple-system, BlinkMacSystemFont, sans-serif' },
+                                callback: function(value) {
+                                    return formatNum(value);
+                                }
+                            },
+                            grid: {
+                                color: 'rgba(99, 102, 241, 0.06)',
+                                drawBorder: false,
+                            },
+                            border: { display: false }
+                        }
+                    },
+                    animation: {
+                        duration: 1500,
+                        easing: 'easeOutQuart'
+                    },
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                }
+            });
+        }
+
+        // 创建柱状图渐变
+        function createBarGradient(ctx, color1, color2) {
+            const gradient = ctx.createLinearGradient(0, 280, 0, 0);
+            gradient.addColorStop(0, color2 + '80');
+            gradient.addColorStop(0.5, color1 + 'CC');
+            gradient.addColorStop(1, color1);
+            return gradient;
+        }
+
+        // 创建径向渐变（用于饼图）
+        function createRadialGradient(ctx, color1, color2) {
+            const gradient = ctx.createRadialGradient(150, 150, 0, 150, 150, 150);
+            gradient.addColorStop(0, color1);
+            gradient.addColorStop(1, color2);
+            return gradient;
+        }
+
+        // 详细表格
+        function initDetailTable() {
+            const tbody = document.getElementById('detailTable');
+            const models = Object.entries(stats.models || {});
+            tbody.innerHTML = models.map(([name, data]) => {
+                const total = data.input + data.output;
+                const cost = ((data.input * 0.8 + data.output * 0.8) / 1000000).toFixed(4);
+                let modelClass = 'model-claude';
+                if (name.includes('kimi')) modelClass = 'model-kimi';
+                else if (name.includes('gpt')) modelClass = 'model-gpt';
+                else if (name.includes('deepseek')) modelClass = 'model-deepseek';
+                else if (name.includes('gemini')) modelClass = 'model-gemini';
+                return `<tr>
+                    <td><span class="model-tag ${modelClass}">${name}</span></td>
+                    <td>${formatNum(data.input)}</td>
+                    <td>${formatNum(data.output)}</td>
+                    <td>${formatNum(total)}</td>
+                    <td class="cost-positive">$${cost}</td>
+                </tr>`;
+            }).join('');
+        }
+
+        function filterByDate() {
+            const date = document.getElementById('dateSelect').value;
+            if (date) {
+                location.href = '/?date=' + date;
+            } else {
+                location.href = '/';
+            }
+        }
+
+        initModelChart();
+        initProjectChart();
+        initDetailTable();
+    </script>
+</body>
+</html>

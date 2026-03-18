@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>会话详情 - {{SESSION_ID}}</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <a href="{{BACK_URL}}" class="back-btn">← 返回</a>
+        <h1>会话详情</h1>
+        <div class="subtitle" id="sessionSubtitle">{{SESSION_ID}}</div>
+
+        <div class="cache-note" id="cacheNote">
+            <div class="cache-note-header" onclick="toggleCacheNote()">
+                <h4>ℹ️ 缓存机制说明</h4>
+                <span class="cache-note-toggle">▼</span>
+            </div>
+            <div class="cache-note-content" id="cacheNoteContent">加载中...</div>
+        </div>
+        <script>
+            function toggleCacheNote() {
+                const note = document.getElementById('cacheNote');
+                note.classList.toggle('expanded');
+            }
+        </script>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3>总输入 Tokens</h3>
+                <div class="value" id="totalInput">-</div>
+            </div>
+            <div class="stat-card">
+                <h3>总输出 Tokens</h3>
+                <div class="value" id="totalOutput">-</div>
+            </div>
+            <div class="stat-card">
+                <h3>Cache Read</h3>
+                <div class="value" id="totalCacheRead">-</div>
+                <div class="sub" id="cacheHitRate"></div>
+            </div>
+            <div class="stat-card">
+                <h3>总轮数</h3>
+                <div class="value" id="totalTurns">-</div>
+            </div>
+        </div>
+
+        <div class="savings-box">
+            <div class="savings-item">
+                <div class="label">无缓存预估花费</div>
+                <div class="value" id="noCacheCost">-</div>
+            </div>
+            <div class="savings-item">
+                <div class="label">实际花费（有缓存）</div>
+                <div class="value" id="withCacheCost">-</div>
+            </div>
+            <div class="savings-item">
+                <div class="label">节省金额</div>
+                <div class="value" id="savedCost">-</div>
+            </div>
+            <div class="savings-item">
+                <div class="label">节省比例</div>
+                <div class="value" id="savedPercent">-</div>
+            </div>
+        </div>
+
+        <div class="chart-card">
+            <h3>💰 花费对比曲线：缓存带来的成本节省</h3>
+            <div class="chart-container">
+                <canvas id="costChart"></canvas>
+            </div>
+        </div>
+
+        <div class="chart-card">
+            <h3>📊 每轮 Token 消耗详情</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>轮次</th>
+                        <th>模型</th>
+                        <th>Input</th>
+                        <th>Output</th>
+                        <th>Cache Create</th>
+                        <th>Cache Read</th>
+                        <th>本轮累计</th>
+                    </tr>
+                </thead>
+                <tbody id="turnsTable"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        const sessionData = {{SESSION_JSON}};
+        const costComparison = {{COST_COMPARISON_JSON}};
+
+        function formatNum(num) {
+            if (num >= 1000000) return (num / 1000000).toFixed(2) + 'M';
+            if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+            return num.toString();
+        }
+
+        // 更新副标题
+        const subtitleEl = document.getElementById('sessionSubtitle');
+        subtitleEl.textContent = `${sessionData.session_id} | 共 ${sessionData.total_turns} 轮对话`;
+
+        // 填充统计卡片
+        document.getElementById('totalInput').textContent = formatNum(sessionData.total_input);
+        document.getElementById('totalOutput').textContent = formatNum(sessionData.total_output);
+        document.getElementById('totalCacheRead').textContent = formatNum(sessionData.total_cache_read);
+        document.getElementById('totalTurns').textContent = sessionData.total_turns;
+
+        // 如果有 Cache Create 数据，动态插入卡片
+        const hasCacheCreate = sessionData.total_cache_create > 0;
+        if (hasCacheCreate) {
+            const statsGrid = document.querySelector('.stats-grid');
+            const cacheCreateCard = document.createElement('div');
+            cacheCreateCard.className = 'stat-card';
+            cacheCreateCard.innerHTML = `
+                <h3>Cache Create</h3>
+                <div class="value" style="color:#a371f7">${formatNum(sessionData.total_cache_create)}</div>
+            `;
+            statsGrid.insertBefore(cacheCreateCard, statsGrid.children[2]);
+        }
+
+        // 计算缓存命中率
+        const totalInputWithCache = sessionData.total_input + sessionData.total_cache_read;
+        const cacheHitRate = totalInputWithCache > 0
+            ? ((sessionData.total_cache_read / totalInputWithCache) * 100).toFixed(1)
+            : 0;
+        document.getElementById('cacheHitRate').textContent = cacheHitRate > 0 ? `命中率 ${cacheHitRate}%` : '';
+
+        // 缓存说明
+        const modelName = sessionData.turns[0]?.model || 'unknown';
+        const cacheNoteContent = document.getElementById('cacheNoteContent');
+        const hasAnyCacheCreate = sessionData.turns.some(t => t.cache_create > 0);
+
+        // 检查是否有 Cache Read 异常高的情况
+        const hasHighCacheRead = sessionData.turns.some(t => t.cache_read > t.input * 5 && t.cache_read > 10000);
+
+        if (modelName.includes('kimi') || modelName.includes('Kimi')) {
+            if (hasAnyCacheCreate) {
+                // 罕见的 Kimi 有 Cache Create 数据的情况
+                cacheNoteContent.innerHTML = `
+                    <b>Kimi 模型缓存机制（检测到显式缓存标记）：</b><br>
+                    • 本会话包含 <b>${formatNum(sessionData.total_cache_create)}</b> 个 Cache Create tokens<br>
+                    • <b>Cache Create</b>：主动标记为缓存的 tokens（可能用于长上下文保持）<br>
+                    • <b>Cache Read</b>：命中缓存的 tokens 数，按优惠价格计费${hasHighCacheRead ? '（⚠️ 标记行表示 Cache Read 包含完整对话历史）' : ''}<br>
+                    • 缓存命中率：<span class="cache-hit-rate">${cacheHitRate}%</span>，节省约 $${(costComparison[costComparison.length-1]?.saved || 0).toFixed(4)}
+                `;
+            } else {
+                cacheNoteContent.innerHTML = `
+                    <b>Kimi 模型缓存机制：</b><br>
+                    • Kimi API 采用<b>自动缓存</b>机制，系统会自动复用历史对话上下文<br>
+                    • <b>Cache Read</b>：命中缓存的 tokens 数（${formatNum(sessionData.total_cache_read)}）${hasHighCacheRead ? '，⚠️ 标记行表示 Cache Read 超过 Input 的 5 倍，表示该轮从缓存读取了大量历史对话' : ''}<br>
+                    • <b>Input</b>：本轮新增的输入 tokens | <b>Cache Read</b>：从缓存读取的历史 tokens<br>
+                    • <b>Cache Create</b>：Kimi 通常不显示此项，由系统自动管理<br>
+                    • 缓存命中率：<span class="cache-hit-rate">${cacheHitRate}%</span>，节省约 $${(costComparison[costComparison.length-1]?.saved || 0).toFixed(4)}
+                `;
+            }
+        } else if (modelName.includes('claude') || modelName.includes('Claude')) {
+            cacheNoteContent.innerHTML = `
+                <b>Claude 模型缓存机制：</b><br>
+                • Claude 支持显式缓存控制（<b>ephemeral</b> 5分钟 / <b>persisted</b> 1小时缓存标记）<br>
+                • <b>Cache Create</b>：首次创建缓存的 tokens 数（${hasAnyCacheCreate ? formatNum(sessionData.total_cache_create) : '本会话无'}）<br>
+                • <b>Cache Read</b>：命中缓存的 tokens 数，计费更便宜${hasHighCacheRead ? '<br>• ⚠️ 部分轮次 Cache Read 显著高于 Input，表示大量复用了缓存的历史上下文' : ''}<br>
+                • 缓存命中率：<span class="cache-hit-rate">${cacheHitRate}%</span>${costComparison.length > 0 ? `，累计节省 $${(costComparison[costComparison.length-1]?.saved || 0).toFixed(4)}` : ''}
+            `;
+        } else {
+            cacheNoteContent.innerHTML = `
+                <b>模型：${modelName}</b><br>
+                • ${hasAnyCacheCreate ? `<b>Cache Create</b>：${formatNum(sessionData.total_cache_create)} tokens<br>` : ''}
+                • <b>Cache Read</b>：命中缓存的 tokens 数（${formatNum(sessionData.total_cache_read)}）${hasHighCacheRead ? '（⚠️ 部分行 Cache Read 包含完整历史）' : ''}<br>
+                • <b>Input</b>：本轮新增输入 | <b>Cache Read</b>：历史缓存读取<br>
+                • 缓存命中率：<span class="cache-hit-rate">${cacheHitRate}%</span>
+            `;
+        }
+
+        // 填充节省统计
+        if (costComparison.length > 0) {
+            const last = costComparison[costComparison.length - 1];
+            document.getElementById('noCacheCost').textContent = '$' + last.no_cache.toFixed(4);
+            document.getElementById('withCacheCost').textContent = '$' + last.with_cache.toFixed(4);
+            document.getElementById('savedCost').textContent = '$' + last.saved.toFixed(4);
+            document.getElementById('savedPercent').textContent = last.saved_percent + '%';
+        }
+
+        // 花费对比曲线图
+        function initCostChart() {
+            const ctx = document.getElementById('costChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: costComparison.map(c => '轮 ' + c.turn),
+                    datasets: [{
+                        label: '无缓存花费',
+                        data: costComparison.map(c => c.no_cache),
+                        borderColor: '#fb7185',
+                        backgroundColor: 'rgba(251, 113, 133, 0.15)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4,
+                        pointBackgroundColor: '#fb7185',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2,
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
+                    }, {
+                        label: '有缓存花费（实际）',
+                        data: costComparison.map(c => c.with_cache),
+                        borderColor: '#34d399',
+                        backgroundColor: 'rgba(52, 211, 153, 0.15)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4,
+                        pointBackgroundColor: '#34d399',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2,
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { intersect: false, mode: 'index' },
+                    plugins: {
+                        legend: {
+                            labels: {
+                                color: '#94a3b8',
+                                font: { size: 12, family: '-apple-system, BlinkMacSystemFont, sans-serif' },
+                                usePointStyle: true,
+                                pointStyle: 'circle',
+                                pointRadius: 6,
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(16, 18, 30, 0.9)',
+                            titleColor: '#f8fafc',
+                            bodyColor: '#94a3b8',
+                            borderColor: 'rgba(99, 102, 241, 0.2)',
+                            borderWidth: 1,
+                            padding: 12,
+                            cornerRadius: 8,
+                            callbacks: {
+                                afterLabel: function(context) {
+                                    const idx = context.dataIndex;
+                                    const data = costComparison[idx];
+                                    return `节省: $${data.saved.toFixed(6)} (${data.saved_percent}%)`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: '#64748b', font: { size: 11 } },
+                            grid: { color: 'rgba(99, 102, 241, 0.06)', drawBorder: false },
+                            border: { display: false }
+                        },
+                        y: {
+                            ticks: { color: '#64748b', callback: v => '$' + v.toFixed(4), font: { size: 11 } },
+                            grid: { color: 'rgba(99, 102, 241, 0.06)', drawBorder: false },
+                            border: { display: false }
+                        }
+                    }
+                }
+            });
+        }
+
+        // 填充轮次表格
+        function initTurnsTable() {
+            const tbody = document.getElementById('turnsTable');
+            tbody.innerHTML = sessionData.turns.map(turn => {
+                const hasCacheCreate = turn.cache_create > 0;
+                const hasCacheRead = turn.cache_read > 0;
+                const msgTypes = turn.msg_type || [];
+                const msgStatus = turn.msg_status || 'complete';
+
+                // 类型标签
+                const typeBadges = msgTypes.map(t => {
+                    if (t === 'thinking') return '<span class="msg-type-thinking" data-tooltip="模型的内部思考过程（reasoning）">思考</span>';
+                    if (t === 'tool_use') return '<span class="msg-type-tool" data-tooltip="调用外部工具（如 Bash、Read 等）">工具</span>';
+                    if (t === 'text') return '<span class="msg-type-text" data-tooltip="正常的文本回复">回复</span>';
+                    return '';
+                }).join(' ');
+
+                // 状态标签（用于中间状态）
+                let statusBadge = '';
+                if (msgStatus === 'thinking') {
+                    statusBadge = '<span class="msg-status-thinking" data-tooltip="正在生成思考过程，尚未输出结果">思考中...</span>';
+                } else if (msgStatus === 'waiting') {
+                    statusBadge = '<span class="msg-status-waiting" data-tooltip="已发起工具调用，等待执行结果">等待工具...</span>';
+                } else if (msgStatus === 'empty') {
+                    statusBadge = '<span class="msg-status-empty" data-tooltip="消息包含text类型但无实际输出内容（可能是预分配token或空消息）">空消息</span>';
+                }
+
+                // Cache Read 是否异常高（超过 input 的 5 倍且大于10000）
+                const isCacheReadHigh = turn.cache_read > turn.input * 5 && turn.cache_read > 10000;
+
+                // 构建 Cache Read 的 tooltip
+                let cacheReadTooltip = '';
+                if (isCacheReadHigh) {
+                    cacheReadTooltip = `Cache Read (${formatNum(turn.cache_read)}) 包含了完整对话历史缓存，而 Input (${formatNum(turn.input)}) 只是本轮新增的 tokens`;
+                }
+
+                return `<tr>
+                    <td><span class="turn-num">#${turn.turn}</span></td>
+                    <td>${turn.model} ${typeBadges} ${statusBadge}</td>
+                    <td>${formatNum(turn.input)}</td>
+                    <td>${formatNum(turn.output)}</td>
+                    <td class="${hasCacheCreate ? 'cache-create-highlight' : ''}">${hasCacheCreate ? formatNum(turn.cache_create) : '<span style="color:#6e7681">-</span>'}</td>
+                    <td class="${hasCacheRead ? (isCacheReadHigh ? 'cache-high' : 'cache-info') : ''}"
+                        ${isCacheReadHigh ? `data-tooltip="${cacheReadTooltip}" style="cursor: help;"` : ''}
+                        >${hasCacheRead ? formatNum(turn.cache_read) + (isCacheReadHigh ? ' ⚠' : '') : '<span style="color:#6e7681">-</span>'}</td>
+                    <td>${formatNum(turn.cumulative_total)}</td>
+                </tr>`;
+            }).join('');
+        }
+
+        initCostChart();
+        initTurnsTable();
+    </script>
+</body>
+</html>
