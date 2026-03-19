@@ -216,6 +216,9 @@ class StatusBarAppDelegate: NSObject, NSApplicationDelegate {
             window.title = "Token Monitor"
             window.contentView = hostingView
             window.isReleasedWhenClosed = false
+            window.backgroundColor = NSColor(hex: "0d0f17")
+            window.isOpaque = true
+            window.hasShadow = true
 
             detailWindow = window
         }
@@ -254,6 +257,7 @@ class StatusBarAppDelegate: NSObject, NSApplicationDelegate {
             window.title = "设置"
             window.contentView = hostingView
             window.isReleasedWhenClosed = false
+            window.backgroundColor = NSColor(hex: "0d0f17")
 
             configWindow = window
         }

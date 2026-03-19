@@ -244,6 +244,32 @@ A: 基于官方 API 价格估算，实际费用可能因折扣、缓存等略有
 
 感谢所有贡献者和用户的支持！
 
+cchud 和 cchud-stop 用的是 release                          
+  构建，但启动路径有优先级：                                  
+                                                              
+  alias cchud="cc-token-monitor hud"                          
+                                                              
+  cc-token-monitor hud                                        
+  会按这个顺序查找可执行文件（bin/cc-token-monitor:368-377）：
+                                                              
+  1. 开发模式（优先）：$script_dir/../hud/.build/release/cc-to
+  ken-monitor-hud                              
+  2. 项目目录：$HOME/projects/cc-token-monitor/hud/.build/rele
+  ase/cc-token-monitor-hud                                    
+  3. 已安装版本：/usr/local/bin/cc-token-monitor-hud
+  4. PATH 中任意版本                                          
+                                                              
+  结论：如果你在项目目录直接运行 ./bin/cc-token-monitor       
+  hud，它用的是 dev 版本；如果运行的是已安装的                
+  cc-token-monitor hud，它会优先检查项目目录是否存在 dev      
+  版本，存在就用 dev，否则用 /usr/local/bin 的 release 版本。
+                                               
+  要强制用 release 版本，可以：                               
+  /usr/local/bin/cc-token-monitor-hud &
+                                                              
+  要强制用 dev 版本：                                         
+  ./hud/.build/release/cc-token-monitor-hud &
+
 ---
 
 如果这个项目对你有帮助，请给个 ⭐️ Star！

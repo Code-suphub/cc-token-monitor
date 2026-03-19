@@ -72,7 +72,7 @@ struct SettingsPanel: View {
 
                             Text(displayModeDescription)
                                 .font(.system(size: 11))
-                                .foregroundColor(.white.opacity(0.4))
+                                .foregroundColor(.white.opacity(0.7))
                                 .padding(.top, 4)
                         }
                     }
@@ -98,7 +98,7 @@ struct SettingsPanel: View {
 
                             Text(statusBarDisplayDescription)
                                 .font(.system(size: 11))
-                                .foregroundColor(.white.opacity(0.4))
+                                .foregroundColor(.white.opacity(0.7))
                                 .padding(.top, 4)
                         }
                     }
@@ -158,7 +158,7 @@ struct SettingsPanel: View {
                                 .foregroundColor(.white)
                             Text("版本 1.1.0")
                                 .font(.system(size: 11))
-                                .foregroundColor(.white.opacity(0.4))
+                                .foregroundColor(.white.opacity(0.7))
                         }
                     }
                 }
@@ -176,7 +176,7 @@ struct SettingsPanel: View {
                     .foregroundColor(accentColor)
                 Text("显示模式更改需要重启应用生效")
                     .font(.system(size: 10))
-                    .foregroundColor(.white.opacity(0.4))
+                    .foregroundColor(.white.opacity(0.7))
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
@@ -194,19 +194,15 @@ struct SettingsPanel: View {
         .frame(width: 300, height: 480)
         .background(
             RoundedRectangle(cornerRadius: 20)
-                .fill(.ultraThinMaterial)
-                .background(
-                    RoundedRectangle(cornerRadius: 20)
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    Color(hex: "1e2330").opacity(0.95),
-                                    Color(hex: "14161f").opacity(0.98)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color(hex: "1a1e2e").opacity(1.0),
+                            Color(hex: "131620").opacity(1.0)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
                 )
         )
         .overlay(
@@ -225,14 +221,8 @@ struct SettingsPanel: View {
                 )
         )
         .shadow(
-            color: accentColor.opacity(0.12),
-            radius: 20,
-            x: 0,
-            y: 8
-        )
-        .shadow(
-            color: .black.opacity(0.4),
-            radius: 12,
+            color: .black.opacity(0.3),
+            radius: 8,
             x: 0,
             y: 4
         )
@@ -376,7 +366,7 @@ struct SettingsPanel: View {
                     .foregroundColor(color)
                 Text(title)
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(.white.opacity(0.5))
+                    .foregroundColor(.white.opacity(0.9))
                     .tracking(0.3)
             }
             content()

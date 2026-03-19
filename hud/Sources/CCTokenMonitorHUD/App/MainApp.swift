@@ -392,8 +392,17 @@ struct FloatingContentView: View {
         .frame(width: 140, height: 100)
         .background(
             RoundedRectangle(cornerRadius: 12)
-                .fill(.ultraThinMaterial)
-                .shadow(color: .black.opacity(0.15), radius: 6, x: 0, y: 3)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color(hex: "1a1e2e").opacity(1.0),
+                            Color(hex: "131620").opacity(1.0)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .shadow(color: .black.opacity(0.3), radius: 6, x: 0, y: 3)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 12)

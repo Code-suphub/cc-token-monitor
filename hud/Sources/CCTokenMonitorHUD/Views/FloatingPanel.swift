@@ -135,19 +135,15 @@ struct FloatingPanel: View {
         .frame(width: 300, height: 420)
         .background(
             RoundedRectangle(cornerRadius: 20)
-                .fill(.ultraThinMaterial)
-                .background(
-                    RoundedRectangle(cornerRadius: 20)
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    Color(hex: "1e2330").opacity(0.95),
-                                    Color(hex: "14161f").opacity(0.98)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color(hex: "1a1e2e").opacity(1.0),
+                            Color(hex: "131620").opacity(1.0)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
                 )
         )
         .overlay(
@@ -166,14 +162,8 @@ struct FloatingPanel: View {
                 )
         )
         .shadow(
-            color: accentColor.opacity(0.12),
-            radius: 20,
-            x: 0,
-            y: 8
-        )
-        .shadow(
-            color: .black.opacity(0.4),
-            radius: 12,
+            color: .black.opacity(0.3),
+            radius: 8,
             x: 0,
             y: 4
         )
@@ -188,7 +178,7 @@ struct FloatingPanel: View {
                     .foregroundColor(accentColor)
                 Text("今日概览")
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(.white.opacity(0.5))
+                    .foregroundColor(.white.opacity(0.9))
                     .tracking(0.3)
             }
 
@@ -199,9 +189,10 @@ struct FloatingPanel: View {
                             .font(.system(size: 24, weight: .semibold, design: .rounded))
                             .fontDesign(.monospaced)
                             .foregroundColor(.white)
+                            .shadow(color: .black.opacity(0.3), radius: 0.5, x: 0, y: 0.5)
                         Text("tokens")
                             .font(.system(size: 11))
-                            .foregroundColor(.white.opacity(0.4))
+                            .foregroundColor(.white.opacity(0.8))
                     }
 
                     HStack(alignment: .firstTextBaseline, spacing: 2) {
@@ -212,6 +203,7 @@ struct FloatingPanel: View {
                             .font(.system(size: 18, weight: .semibold, design: .rounded))
                             .fontDesign(.monospaced)
                             .foregroundColor(greenColor)
+                            .shadow(color: greenColor.opacity(0.3), radius: 0.5, x: 0, y: 0.5)
                     }
                 }
 
@@ -256,7 +248,7 @@ struct FloatingPanel: View {
                     .foregroundColor(purpleColor)
                 Text("近7天趋势")
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(.white.opacity(0.5))
+                    .foregroundColor(.white.opacity(0.9))
                     .tracking(0.3)
             }
 
@@ -333,7 +325,7 @@ struct FloatingPanel: View {
                     .foregroundColor(amberColor)
                 Text("今日会话")
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(.white.opacity(0.5))
+                    .foregroundColor(.white.opacity(0.9))
                     .tracking(0.3)
             }
 
@@ -344,7 +336,7 @@ struct FloatingPanel: View {
                     .foregroundColor(.white)
                 Text("个会话")
                     .font(.system(size: 11))
-                    .foregroundColor(.white.opacity(0.4))
+                    .foregroundColor(.white.opacity(0.8))
 
                 Spacer()
             }

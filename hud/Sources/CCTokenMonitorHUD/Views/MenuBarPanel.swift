@@ -47,41 +47,26 @@ struct MenuBarPanel: View {
         .frame(width: 320, height: 520)
         .background(
             RoundedRectangle(cornerRadius: 20)
-                .fill(.ultraThinMaterial)
-                .background(
-                    RoundedRectangle(cornerRadius: 20)
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    Color(hex: "1e2330").opacity(0.95),
-                                    Color(hex: "14161f").opacity(0.98)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color(hex: "1a1e2e").opacity(1.0),
+                            Color(hex: "131620").opacity(1.0)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
                 )
         )
         .overlay(
             RoundedRectangle(cornerRadius: 20)
-                .strokeBorder(
-                    LinearGradient(
-                        colors: [
-                            accentColor.opacity(0.4),
-                            purpleColor.opacity(0.2),
-                            accentColor.opacity(0.3)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 1.5
-                )
+                .strokeBorder(accentColor.opacity(0.3), lineWidth: 1)
         )
         .shadow(
-            color: accentColor.opacity(0.12),
-            radius: 20,
+            color: .black.opacity(0.3),
+            radius: 8,
             x: 0,
-            y: 8
+            y: 4
         )
     }
 
@@ -144,7 +129,7 @@ struct MenuBarPanel: View {
                     .foregroundColor(accentColor)
                 Text("今日")
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(.white.opacity(0.5))
+                    .foregroundColor(.white.opacity(0.9))
                     .tracking(0.3)
             }
 
@@ -156,7 +141,7 @@ struct MenuBarPanel: View {
                         .foregroundColor(.white)
                     Text("tokens")
                         .font(.system(size: 10))
-                        .foregroundColor(.white.opacity(0.4))
+                        .foregroundColor(.white.opacity(0.7))
                 }
 
                 Spacer()
@@ -168,7 +153,7 @@ struct MenuBarPanel: View {
                         .foregroundColor(greenColor)
                     Text("cost")
                         .font(.system(size: 10))
-                        .foregroundColor(.white.opacity(0.4))
+                        .foregroundColor(.white.opacity(0.7))
                 }
             }
         }
@@ -182,7 +167,7 @@ struct MenuBarPanel: View {
                     .foregroundColor(purpleColor)
                 Text("近7天趋势")
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(.white.opacity(0.5))
+                    .foregroundColor(.white.opacity(0.9))
                     .tracking(0.3)
             }
 
@@ -248,7 +233,7 @@ struct MenuBarPanel: View {
                     .foregroundColor(amberColor)
                 Text("模型分布")
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(.white.opacity(0.5))
+                    .foregroundColor(.white.opacity(0.9))
                     .tracking(0.3)
             }
 
@@ -285,7 +270,7 @@ struct MenuBarPanel: View {
                     .foregroundColor(amberColor)
                 Text("今日会话")
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(.white.opacity(0.5))
+                    .foregroundColor(.white.opacity(0.9))
                     .tracking(0.3)
             }
 

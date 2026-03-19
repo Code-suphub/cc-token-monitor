@@ -94,50 +94,27 @@ struct FloatingWidget: View {
         .padding(.vertical, 10)
         .frame(width: 130, height: 90)
         .background(
-            // 玻璃拟态背景
             RoundedRectangle(cornerRadius: 16)
-                .fill(.ultraThinMaterial)
-                .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    Color(hex: "1a1d29").opacity(0.8),
-                                    Color(hex: "0d0f17").opacity(0.9)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                )
-        )
-        .overlay(
-            // 发光边框效果
-            RoundedRectangle(cornerRadius: 16)
-                .strokeBorder(
+                .fill(
                     LinearGradient(
                         colors: [
-                            accentColor.opacity(0.6),
-                            accentColor.opacity(0.2),
-                            accentColor.opacity(0.4)
+                            Color(hex: "1a1e2e").opacity(1.0),
+                            Color(hex: "131620").opacity(1.0)
                         ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 1.5
+                    )
                 )
         )
-        .shadow(
-            color: accentColor.opacity(0.15),
-            radius: 12,
-            x: 0,
-            y: 4
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .strokeBorder(accentColor.opacity(0.3), lineWidth: 1)
         )
         .shadow(
             color: .black.opacity(0.3),
-            radius: 8,
+            radius: 6,
             x: 0,
-            y: 2
+            y: 3
         )
         .scaleEffect(isPressed ? 0.96 : 1.0)
         .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isPressed)
