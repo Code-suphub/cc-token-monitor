@@ -76,6 +76,8 @@ class ConfigManager: ObservableObject {
     func update(_ updater: (inout HUDConfig) -> Void) {
         updater(&config)
         saveConfig()
+        // 发送配置变更通知
+        NotificationCenter.default.post(name: .init("ConfigDidChange"), object: nil)
     }
 
     /// 保存位置

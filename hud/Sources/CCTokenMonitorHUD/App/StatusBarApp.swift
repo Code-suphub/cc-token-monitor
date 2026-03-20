@@ -37,6 +37,14 @@ class StatusBarAppDelegate: NSObject, NSApplicationDelegate {
             name: NSNotification.Name("DisableAutoClose"),
             object: nil
         )
+
+        // 监听配置变更
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(configDidChange),
+            name: NSNotification.Name("ConfigDidChange"),
+            object: nil
+        )
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -298,6 +306,11 @@ class StatusBarAppDelegate: NSObject, NSApplicationDelegate {
     }
 
     // MARK: - Dialog Helpers
+
+    @objc private func configDidChange() {
+        // 配置变更时更新状态栏显示
+        updateStatusBarDisplay()
+    }
 
     @objc private func handleDialogNotification(_ notification: Notification) {
         if let disable = notification.object as? Bool {
