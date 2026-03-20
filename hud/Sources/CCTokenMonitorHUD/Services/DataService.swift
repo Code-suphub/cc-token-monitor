@@ -9,11 +9,11 @@ class DataService: ObservableObject {
     @Published var lastError: Error?
 
     private var timer: Timer?
-    private let statsDir: URL
+    private let monthlyDir: URL
 
     init() {
-        statsDir = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".claude/token-stats/daily")
+        monthlyDir = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".claude/token-stats/monthly")
 
         // 立即加载一次
         refreshData()
@@ -99,9 +99,11 @@ class DataService: ObservableObject {
         return loadStats(for: todayString)
     }
 
-    /// 加载指定日期的统计数据
+    /// 加载指定日期的统计数据（从月文件中筛选）
     private func loadStats(for dateString: String) -> DailyStats? {
-        let fileURL = statsDir.appendingPathComponent("\(dateString).csv")
+        // 从日期提取年月
+        let month = String(dateString.prefix(7))  // "2026-03"
+        let fileURL = monthlyDir.appendingPathComponent("\(month).csv")
 
         guard FileManager.default.fileExists(atPath: fileURL.path),
               let content = try? String(contentsOf: fileURL, encoding: .utf8) else {
@@ -117,15 +119,19 @@ class DataService: ObservableObject {
         let lines = content.components(separatedBy: .newlines)
         for line in lines {
             let parts = line.components(separatedBy: "|")
-            guard parts.count >= 7 else { continue }
+            // 新格式: date|session|project|model|input|output|cache_create|cache_read
+            guard parts.count >= 8 else { continue }
 
-            let sessionId = parts[0]
+            // 只统计指定日期的数据
+            if parts[0] != dateString { continue }
+
+            let sessionId = parts[1]
             sessions.insert(sessionId)
 
-            if let input = Int(parts[3]),
-               let output = Int(parts[4]),
-               let cacheCreate = Int(parts[5]),
-               let cacheRead = Int(parts[6]) {
+            if let input = Int(parts[4]),
+               let output = Int(parts[5]),
+               let cacheCreate = Int(parts[6]),
+               let cacheRead = Int(parts[7]) {
                 inputTokens += input
                 outputTokens += output
                 cacheCreateTokens += cacheCreate
@@ -171,9 +177,11 @@ class DataService: ObservableObject {
         return stats.reversed()  // 日期从早到晚
     }
 
-    /// 加载指定日期按模型统计的数据
+    /// 加载指定日期按模型统计的数据（从月文件中筛选）
     private func loadModelStats(for dateString: String) -> [ModelStats] {
-        let fileURL = statsDir.appendingPathComponent("\(dateString).csv")
+        // 从日期提取年月
+        let month = String(dateString.prefix(7))  // "2026-03"
+        let fileURL = monthlyDir.appendingPathComponent("\(month).csv")
 
         guard FileManager.default.fileExists(atPath: fileURL.path),
               let content = try? String(contentsOf: fileURL, encoding: .utf8) else {
@@ -186,17 +194,21 @@ class DataService: ObservableObject {
         let lines = content.components(separatedBy: .newlines)
         for line in lines {
             let parts = line.components(separatedBy: "|")
-            guard parts.count >= 7 else { continue }
+            // 新格式: date|session|project|model|input|output|cache_create|cache_read
+            guard parts.count >= 8 else { continue }
 
-            let model = parts[2] // model 在第3列
+            // 只统计指定日期的数据
+            if parts[0] != dateString { continue }
+
+            let model = parts[3] // model 在第4列
 
             // 过滤无效模型名
             guard !model.isEmpty,
                   model != "model",
                   !model.hasPrefix("<") else { continue }
 
-            if let input = Int(parts[3]),
-               let output = Int(parts[4]) {
+            if let input = Int(parts[4]),
+               let output = Int(parts[5]) {
                 if var existing = modelData[model] {
                     existing.input += input
                     existing.output += output

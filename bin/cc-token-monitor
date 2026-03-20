@@ -98,26 +98,31 @@ process_file() {
     jq -r --arg project "$project_path" --arg sid "$session_id" --arg tmpdir "$tmp_dir" '
         select(.message.usage) |
         (.timestamp // .message.timestamp // now | split("T")[0]) as $date |
+        ($date | split("-")[0:2] | join("-")) as $month |
         # 过滤无效模型名
         select(.message.model // "unknown" | test("^(synthetic|model|)$"; "i") | not) |
-        # 同时输出到 session 文件和按日期分组的临时文件
-        "\($date)|\($sid)|\($project)|\(.message.model // "unknown")|\(.message.usage.input_tokens // 0)|\(.message.usage.output_tokens // 0)|\(.message.usage.cache_creation_input_tokens // 0)|\(.message.usage.cache_read_input_tokens // 0)"
+        # 输出格式: date|month|session|project|model|input|output|cache_create|cache_read
+        "\($date)|\($month)|\($sid)|\($project)|\(.message.model // "unknown")|\(.message.usage.input_tokens // 0)|\(.message.usage.output_tokens // 0)|\(.message.usage.cache_creation_input_tokens // 0)|\(.message.usage.cache_read_input_tokens // 0)"
     ' 2>/dev/null | tee -a "$stat_file" | awk -F'|' -v tmpdir="$tmp_dir" '{
         d = $1
-        # 过滤无效模型名（防止 jq 未过滤的情况）
-        if ($4 != "" && $4 != "model" && $4 !~ /^<.*>$/) {
-            outfile = tmpdir "/" d ".txt"
-            printf "%s|%s|%s|%d|%d|%d|%d\n", $2,$3,$4,$5,$6,$7,$8 >> outfile
+        m = $2
+        # 过滤无效模型名
+        if ($5 != "" && $5 != "model" && $5 !~ /^<.*>$/) {
+            # 按月聚合存储，但保留日期在第一列
+            outfile = tmpdir "/" m ".txt"
+            # 存储格式: date|session|project|model|input|output|cache_create|cache_read
+            printf "%s|%s|%s|%s|%d|%d|%d|%d\n", $1,$3,$4,$5,$6,$7,$8,$9 >> outfile
         }
     }'
 
-    # 将新增记录追加到对应日期的 daily 文件
+    # 将新增记录追加到对应月份的 monthly 文件
     for tmp_file in "$tmp_dir"/*.txt; do
         [[ -f "$tmp_file" ]] || continue
-        local date_str=$(basename "$tmp_file" .txt)
-        local daily_file="$STATS_DIR/daily/${date_str}.csv"
-        cat "$tmp_file" >> "$daily_file"
-        sort -u "$daily_file" > "$daily_file.new" && mv "$daily_file.new" "$daily_file"
+        local month_str=$(basename "$tmp_file" .txt)
+        local monthly_file="$STATS_DIR/monthly/${month_str}.csv"
+        mkdir -p "$STATS_DIR/monthly"
+        cat "$tmp_file" >> "$monthly_file"
+        sort -u "$monthly_file" > "$monthly_file.new" && mv "$monthly_file.new" "$monthly_file"
     done
 
     rm -rf "$tmp_dir"
@@ -148,12 +153,12 @@ rescan_all() {
         echo -e "  ${GREEN}✓${NC} 已清除 $count_files 个缓存文件"
     fi
 
-    # 备份并清空 daily 文件
-    if [[ -d "$STATS_DIR/daily" ]]; then
+    # 备份并清空 monthly 文件
+    if [[ -d "$STATS_DIR/monthly" ]]; then
         local backup_dir="$STATS_DIR/backups/$(date +%Y%m%d_%H%M%S)"
         mkdir -p "$backup_dir"
-        cp "$STATS_DIR/daily"/*.csv "$backup_dir/" 2>/dev/null
-        rm -f "$STATS_DIR/daily"/*.csv
+        cp "$STATS_DIR/monthly"/*.csv "$backup_dir/" 2>/dev/null
+        rm -f "$STATS_DIR/monthly"/*.csv
         echo -e "  ${GREEN}✓${NC} 已备份并清空历史统计 (备份: $backup_dir)"
     fi
 
@@ -183,22 +188,40 @@ rescan_all() {
     show_today
 }
 
+# 获取指定日期的数据（从月文件中筛选）
+get_date_data() {
+    local target_date="$1"
+    local month=$(echo "$target_date" | cut -d'-' -f1-2)
+    local monthly_file="$STATS_DIR/monthly/${month}.csv"
+
+    if [[ ! -f "$monthly_file" ]]; then
+        return 1
+    fi
+
+    # 从月文件中筛选出指定日期的数据（去掉第一列的日期）
+    grep "^${target_date}|" "$monthly_file" 2>/dev/null | cut -d'|' -f2-
+}
+
 show_today() { show_date_models "$(date +%Y-%m-%d)"; }
 
 show_date_models() {
     local target_date="${1:-$(date +%Y-%m-%d)}"
-    local daily_file="$STATS_DIR/daily/${target_date}.csv"
     echo ""
     echo "╔════════════════════════════════════════════════════════════════════════════════════╗"
     printf "║         Claude Code Token 统计 - %-45s ║\n" "$target_date"
     echo "╚════════════════════════════════════════════════════════════════════════════════════╝"
     echo ""
-    if [[ ! -f "$daily_file" ]]; then echo -e "${YELLOW}该日期暂无数据${NC}"; return 1; fi
+
+    local data=$(get_date_data "$target_date")
+    if [[ -z "$data" ]]; then
+        echo -e "${YELLOW}该日期暂无数据${NC}"
+        return 1
+    fi
 
     printf "${CYAN}%-25s %12s %12s %12s %12s %12s %12s${NC}\n" "Model" "Input" "Output" "CacheCreate" "CacheRead" "Total" "Cost(USD)"
     printf "%s\n" "────────────────────────────────────────────────────────────────────────────────────"
 
-    awk -F'|' '{
+    echo "$data" | awk -F'|' '{
         m=$3; inp[m]+=$4; out[m]+=$5; cc[m]+=$6; cr[m]+=$7; models[m]=1
     } END {
         for (m in models) { total=inp[m]+out[m]; cost=(inp[m]*0.8+out[m]*0.8)/1000000;
@@ -208,14 +231,15 @@ show_date_models() {
         tt=ti+to; tc=(ti*0.8+to*0.8)/1000000
         print "────────────────────────────────────────────────────────────────────────────────────"
         printf "%-25s %12d %12d %12d %12d %12d %12.4f\n", "TOTAL", ti, to, tcc, tcr, tt, tc
-    }' "$daily_file"
+    }'
     echo ""
 }
 
 show_by_project() {
     local target_date="${1:-$(date +%Y-%m-%d)}"
-    local daily_file="$STATS_DIR/daily/${target_date}.csv"
-    [[ ! -f "$daily_file" ]] && echo -e "${YELLOW}暂无数据${NC}" && return 1
+    local data=$(get_date_data "$target_date")
+    [[ -z "$data" ]] && echo -e "${YELLOW}暂无数据${NC}" && return 1
+
     echo ""
     echo "╔════════════════════════════════════════════════════════════════════════════════════╗"
     printf "║         按项目统计 - %-45s ║\n" "$target_date"
@@ -224,20 +248,20 @@ show_by_project() {
     printf "${CYAN}%-50s %8s %12s %12s %12s${NC}\n" "Project" "Sessions" "Input" "Output" "Cost(USD)"
     printf "%s\n" "────────────────────────────────────────────────────────────────────────────────────"
 
-    awk -F'|' '{
+    echo "$data" | awk -F'|' '{
         p=$2; inp[p]+=$4; out[p]+=$5
         if (!seen[p","$1]++) sess_count[p]++
     } END {
         for (p in inp) { cost=(inp[p]*0.8+out[p]*0.8)/1000000; sc=sess_count[p]+0;
             printf "%-50s %8d %12d %12d %12.4f\n", substr(p,1,50), sc, inp[p], out[p], cost
         }
-    }' "$daily_file"
+    }'
     echo ""
 }
 
 show_sessions() {
     local target_date="${1:-$(date +%Y-%m-%d)}"
-    local daily_file="$STATS_DIR/daily/${target_date}.csv"
+    local data=$(get_date_data "$target_date")
 
     echo ""
     echo "╔════════════════════════════════════════════════════════════════════════════════════╗"
@@ -245,7 +269,7 @@ show_sessions() {
     echo "╚════════════════════════════════════════════════════════════════════════════════════╝"
     echo ""
 
-    if [[ ! -f "$daily_file" ]]; then
+    if [[ -z "$data" ]]; then
         echo -e "${YELLOW}该日期暂无数据${NC}"
         return 1
     fi
@@ -254,7 +278,7 @@ show_sessions() {
         "Session ID" "Project" "Input" "Output" "Cache" "Total"
     printf "%s\n" "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────"
 
-    awk -F'|' '{
+    echo "$data" | awk -F'|' '{
         sid=$1; proj=$2; inp[sid]+=$4; out[sid]+=$5; cache[sid]+=$7; proj_name[sid]=proj
     } END {
         for (s in inp) {
@@ -265,7 +289,7 @@ show_sessions() {
         }
         print "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────"
         printf "%-67s %12d %12d %12d %12d\n", "TOTAL", ti, to, tc, ti+to
-    }' "$daily_file"
+    }'
 
     echo ""
 }
@@ -279,25 +303,39 @@ show_summary() {
     printf "${CYAN}%-12s %8s %14s %14s %14s %12s${NC}\n" "Date" "Sessions" "Input" "Output" "Total" "Cost(USD)"
     printf "%s\n" "────────────────────────────────────────────────────────────────────────────────────"
 
-    for f in "$STATS_DIR"/daily/*.csv; do
-        [[ -f "$f" ]] || continue
-        local dt=$(basename "$f" .csv)
-        awk -F'|' -v d="$dt" '{s[$1]=1; i+=$4; o+=$5} END {cost=(i*0.8+o*0.8)/1000000; printf "%-12s %8d %14d %14d %14d %12.4f\n", d, length(s), i, o, i+o, cost}' "$f"
+    # 从所有月文件中按日期汇总
+    for mf in "$STATS_DIR"/monthly/*.csv; do
+        [[ -f "$mf" ]] || continue
+        # 按日期分组统计
+        awk -F'|' '{
+            d=$1; sess[d][$2]=1; inp[d]+=$5; out[d]+=$6
+        } END {
+            for (d in inp) {
+                cost=(inp[d]*0.8+out[d]*0.8)/1000000;
+                printf "%-12s %8d %14d %14d %14d %12.4f\n", d, length(sess[d]), inp[d], out[d], inp[d]+out[d], cost
+            }
+        }' "$mf"
     done | sort
     echo ""
 }
 
 export_csv() {
     local target_date="${1:-$(date +%Y-%m-%d)}"
+    local month=$(echo "$target_date" | cut -d'-' -f1-2)
+    local monthly_file="$STATS_DIR/monthly/${month}.csv"
     local output_file="$STATS_DIR/cc_report_${target_date}.csv"
+
     echo "date,session_id,project,model,input_tokens,output_tokens,cache_create,cache_read,total,cost_usd" > "$output_file"
 
-    for f in "$STATS_DIR"/daily/*.csv; do
-        [[ -f "$f" ]] || continue
-        local fd=$(basename "$f" .csv)
-        [[ -n "$target_date" && "$fd" != "$target_date" ]] && continue
-        awk -F'|' '{t=$4+$5; c=($4*0.8+$5*0.8)/1000000; printf "%s,%s,%s,%s,%d,%d,%d,%d,%d,%.6f\n", "'$fd'", $1, $2, $3, $4, $5, $6, $7, t, c}' "$f" >> "$output_file"
-    done
+    if [[ -f "$monthly_file" ]]; then
+        # 从月文件中筛选指定日期的数据，并转换为 CSV 格式
+        grep "^${target_date}|" "$monthly_file" 2>/dev/null | awk -F'|' '{
+            # 格式: date|session|project|model|input|output|cache_create|cache_read
+            t=$5+$6; c=($5*0.8+$6*0.8)/1000000;
+            printf "%s,%s,%s,%s,%d,%d,%d,%d,%d,%.6f\n", $1, $2, $3, $4, $5, $6, $7, $8, t, c
+        }' >> "$output_file"
+    fi
+
     echo -e "${GREEN}报告已导出: $output_file ($(wc -l < "$output_file") 行)${NC}"
 }
 
