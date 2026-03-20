@@ -33,6 +33,37 @@ class DataService: ObservableObject {
         timer = nil
     }
 
+    /// 全量重新统计（调用 CLI）
+    func rescanAll() {
+        isLoading = true
+
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let task = Process()
+            task.launchPath = "/bin/bash"
+            task.arguments = ["-c", "cc-token-monitor rescan"]
+
+            let pipe = Pipe()
+            task.standardOutput = pipe
+            task.standardError = pipe
+
+            do {
+                try task.run()
+                task.waitUntilExit()
+
+                // 完成后刷新数据
+                DispatchQueue.main.async {
+                    self?.refreshData()
+                    self?.isLoading = false
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    self?.lastError = error
+                    self?.isLoading = false
+                }
+            }
+        }
+    }
+
     /// 刷新数据
     func refreshData() {
         isLoading = true
@@ -52,6 +83,11 @@ class DataService: ObservableObject {
         let todayString = formatter.string(from: Date())
 
         return loadModelStats(for: todayString)
+    }
+
+    /// 获取指定日期按模型统计的数据
+    func modelStats(for dateString: String) -> [ModelStats] {
+        return loadModelStats(for: dateString)
     }
 
     /// 加载今日统计数据
@@ -107,7 +143,7 @@ class DataService: ObservableObject {
         )
     }
 
-    /// 加载近 N 天数据
+    /// 加载近 N 天数据（包括无数据的日期，显示为0）
     private func loadRecentStats(days: Int) -> [DailyStats] {
         var stats: [DailyStats] = []
         let formatter = DateFormatter()
@@ -117,8 +153,18 @@ class DataService: ObservableObject {
             guard let date = Calendar.current.date(byAdding: .day, value: -i, to: Date()) else { continue }
             let dateString = formatter.string(from: date)
 
+            // 如果有数据就加载，没有则返回0值的统计
             if let stat = loadStats(for: dateString) {
                 stats.append(stat)
+            } else {
+                stats.append(DailyStats(
+                    date: dateString,
+                    inputTokens: 0,
+                    outputTokens: 0,
+                    cacheCreateTokens: 0,
+                    cacheReadTokens: 0,
+                    sessions: 0
+                ))
             }
         }
 

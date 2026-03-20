@@ -13,6 +13,9 @@ struct FloatingPanel: View {
     private let redColor = Color(hex: "f85149")
     private let amberColor = Color(hex: "f0883e")
 
+    // 选中的日期
+    @State private var selectedDate: String? = nil
+
     var body: some View {
         VStack(spacing: 0) {
             // 标题栏
@@ -250,6 +253,20 @@ struct FloatingPanel: View {
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundColor(.white.opacity(0.9))
                     .tracking(0.3)
+                Spacer()
+                if let selected = selectedDate {
+                    HStack(spacing: 2) {
+                        Text(selected)
+                            .font(.system(size: 9))
+                            .foregroundColor(accentColor)
+                        Button(action: { selectedDate = nil }) {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 9))
+                                .foregroundColor(.white.opacity(0.5))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
             }
 
             if dataService.recentStats.count >= 2 {
@@ -259,17 +276,23 @@ struct FloatingPanel: View {
                         y: .value("Tokens", stat.totalTokens)
                     )
                     .foregroundStyle(
-                        stat.date == dataService.todayStats?.date
+                        stat.date == selectedDate
                             ? LinearGradient(
-                                colors: [accentColor, purpleColor],
+                                colors: [greenColor, accentColor],
                                 startPoint: .bottom,
                                 endPoint: .top
                             )
-                            : LinearGradient(
-                                colors: [accentColor.opacity(0.4), accentColor.opacity(0.2)],
-                                startPoint: .bottom,
-                                endPoint: .top
-                            )
+                            : stat.date == dataService.todayStats?.date
+                                ? LinearGradient(
+                                    colors: [accentColor, purpleColor],
+                                    startPoint: .bottom,
+                                    endPoint: .top
+                                )
+                                : LinearGradient(
+                                    colors: [accentColor.opacity(0.4), accentColor.opacity(0.2)],
+                                    startPoint: .bottom,
+                                    endPoint: .top
+                                )
                     )
                     .cornerRadius(3)
                 }
@@ -296,15 +319,58 @@ struct FloatingPanel: View {
                         }
                     }
                 }
+                .overlay(
+                    GeometryReader { geometry in
+                        Color.clear
+                            .contentShape(Rectangle())
+                            .onTapGesture { location in
+                                let width = geometry.size.width
+                                let count = dataService.recentStats.count
+                                guard count > 0 else { return }
 
-                HStack(spacing: 4) {
-                    Text("平均")
-                        .font(.system(size: 10))
-                        .foregroundColor(.white.opacity(0.4))
-                    Text(formatNumber(dataService.recentStats.map(\.totalTokens).reduce(0, +) / dataService.recentStats.count) + "/天")
-                        .font(.system(size: 10, weight: .medium, design: .rounded))
-                        .fontDesign(.monospaced)
-                        .foregroundColor(.white.opacity(0.7))
+                                // 估算 Y 轴宽度（约 30 点）
+                                let yAxisWidth: CGFloat = 30
+                                let plotWidth = width - yAxisWidth
+                                let barWidth = plotWidth / CGFloat(count)
+
+                                // 计算点击的是第几个柱子
+                                let x = location.x - yAxisWidth
+                                let index = Int(x / barWidth)
+
+                                if index >= 0 && index < count {
+                                    selectedDate = dataService.recentStats[index].date
+                                }
+                            }
+                    }
+                )
+
+                // 显示选中日期详情或平均
+                if let selected = selectedDate,
+                   let stat = dataService.recentStats.first(where: { $0.date == selected }) {
+                    HStack(spacing: 8) {
+                        Text("📅 \(stat.date)")
+                            .font(.system(size: 9))
+                            .foregroundColor(.white.opacity(0.7))
+                        Text(stat.formattedTokens)
+                            .font(.system(size: 9, weight: .medium, design: .rounded))
+                            .foregroundColor(.white)
+                        Text("$") + Text(stat.formattedCost)
+                            .font(.system(size: 9, weight: .medium, design: .rounded))
+                            .foregroundColor(greenColor)
+                        Text("\(stat.sessions)sess")
+                            .font(.system(size: 9))
+                            .foregroundColor(amberColor)
+                    }
+                } else {
+                    HStack(spacing: 4) {
+                        Text("平均")
+                            .font(.system(size: 10))
+                            .foregroundColor(.white.opacity(0.4))
+                        Text(formatNumber(dataService.recentStats.map(\.totalTokens).reduce(0, +) / dataService.recentStats.count) + "/天")
+                            .font(.system(size: 10, weight: .medium, design: .rounded))
+                            .fontDesign(.monospaced)
+                            .foregroundColor(.white.opacity(0.7))
+                    }
                 }
             } else {
                 Text("数据不足")

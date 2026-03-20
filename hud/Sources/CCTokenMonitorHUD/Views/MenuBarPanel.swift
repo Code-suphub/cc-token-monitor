@@ -14,6 +14,9 @@ struct MenuBarPanel: View {
     private let redColor = Color(hex: "f85149")
     private let amberColor = Color(hex: "f0883e")
 
+    // 选中的日期
+    @State private var selectedDate: String? = nil
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // 标题栏
@@ -169,6 +172,20 @@ struct MenuBarPanel: View {
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundColor(.white.opacity(0.9))
                     .tracking(0.3)
+                Spacer()
+                if let selected = selectedDate {
+                    HStack(spacing: 4) {
+                        Text("已选: \(selected)")
+                            .font(.system(size: 10))
+                            .foregroundColor(accentColor)
+                        Button(action: { selectedDate = nil }) {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 10))
+                                .foregroundColor(.white.opacity(0.5))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
             }
 
             if dataService.recentStats.count >= 2 {
@@ -178,17 +195,23 @@ struct MenuBarPanel: View {
                         y: .value("Tokens", stat.totalTokens)
                     )
                     .foregroundStyle(
-                        stat.date == dataService.todayStats?.date
+                        stat.date == selectedDate
                             ? LinearGradient(
-                                colors: [accentColor, purpleColor],
+                                colors: [greenColor, accentColor],
                                 startPoint: .bottom,
                                 endPoint: .top
                             )
-                            : LinearGradient(
-                                colors: [accentColor.opacity(0.4), accentColor.opacity(0.2)],
-                                startPoint: .bottom,
-                                endPoint: .top
-                            )
+                            : stat.date == dataService.todayStats?.date
+                                ? LinearGradient(
+                                    colors: [accentColor, purpleColor],
+                                    startPoint: .bottom,
+                                    endPoint: .top
+                                )
+                                : LinearGradient(
+                                    colors: [accentColor.opacity(0.4), accentColor.opacity(0.2)],
+                                    startPoint: .bottom,
+                                    endPoint: .top
+                                )
                     )
                     .cornerRadius(4)
                 }
@@ -215,6 +238,36 @@ struct MenuBarPanel: View {
                         }
                     }
                 }
+                .overlay(
+                    GeometryReader { geometry in
+                        Color.clear
+                            .contentShape(Rectangle())
+                            .onTapGesture { location in
+                                let width = geometry.size.width
+                                let count = dataService.recentStats.count
+                                guard count > 0 else { return }
+
+                                // 估算 Y 轴宽度（约 35 点）
+                                let yAxisWidth: CGFloat = 35
+                                let plotWidth = width - yAxisWidth
+                                let barWidth = plotWidth / CGFloat(count)
+
+                                // 计算点击的是第几个柱子
+                                let x = location.x - yAxisWidth
+                                let index = Int(x / barWidth)
+
+                                if index >= 0 && index < count {
+                                    selectedDate = dataService.recentStats[index].date
+                                }
+                            }
+                    }
+                )
+
+                // 显示选中日期详情
+                if let selected = selectedDate,
+                   let stat = dataService.recentStats.first(where: { $0.date == selected }) {
+                    selectedDateDetailView(stat: stat)
+                }
             } else {
                 Text("数据不足")
                     .font(.system(size: 11))
@@ -225,19 +278,80 @@ struct MenuBarPanel: View {
         }
     }
 
+    private func selectedDateDetailView(stat: DailyStats) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("📅 \(stat.date) 详情")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.9))
+                Spacer()
+            }
+
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Tokens")
+                        .font(.system(size: 9))
+                        .foregroundColor(.white.opacity(0.5))
+                    Text(stat.formattedTokens)
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .foregroundColor(.white)
+                }
+
+                Spacer()
+
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text("Cost")
+                        .font(.system(size: 9))
+                        .foregroundColor(.white.opacity(0.5))
+                    Text("$\(stat.formattedCost)")
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .foregroundColor(greenColor)
+                }
+
+                Spacer()
+
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text("Sessions")
+                        .font(.system(size: 9))
+                        .foregroundColor(.white.opacity(0.5))
+                    Text("\(stat.sessions)")
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .foregroundColor(amberColor)
+                }
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(accentColor.opacity(0.1))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .strokeBorder(accentColor.opacity(0.3), lineWidth: 1)
+                )
+        )
+    }
+
     private var modelStatsView: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 6) {
                 Image(systemName: "cpu")
                     .font(.system(size: 11))
                     .foregroundColor(amberColor)
-                Text("模型分布")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(.white.opacity(0.9))
-                    .tracking(0.3)
+                if let selected = selectedDate {
+                    Text("\(selected) 模型分布")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(.white.opacity(0.9))
+                        .tracking(0.3)
+                } else {
+                    Text("今日模型分布")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(.white.opacity(0.9))
+                        .tracking(0.3)
+                }
             }
 
-            let models = dataService.todayModelStats()
+            let models = selectedDate != nil ? dataService.modelStats(for: selectedDate!) : dataService.todayModelStats()
             if models.isEmpty {
                 Text("暂无数据")
                     .font(.system(size: 11))

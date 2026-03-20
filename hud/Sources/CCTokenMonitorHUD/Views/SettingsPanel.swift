@@ -141,6 +141,10 @@ struct SettingsPanel: View {
                                 dataService.refreshData()
                             }
 
+                            ActionButton("重新统计", icon: "arrow.counterclockwise") {
+                                dataService.rescanAll()
+                            }
+
                             ActionButton("打开数据目录", icon: "folder") {
                                 openDataDirectory()
                             }

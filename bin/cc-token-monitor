@@ -137,6 +137,52 @@ init_process() {
     echo -e "${GREEN}初始化完成，共处理 $count 个会话${NC}"
 }
 
+rescan_all() {
+    echo -e "${YELLOW}全量重新统计：清除缓存并重新扫描所有会话...${NC}"
+    echo ""
+
+    # 删除所有 count 文件，强制重新处理
+    local count_files=$(find "$STATS_DIR/sessions" -name "*.count" 2>/dev/null | wc -l)
+    if [[ $count_files -gt 0 ]]; then
+        rm -f "$STATS_DIR/sessions"/*.count
+        echo -e "  ${GREEN}✓${NC} 已清除 $count_files 个缓存文件"
+    fi
+
+    # 备份并清空 daily 文件
+    if [[ -d "$STATS_DIR/daily" ]]; then
+        local backup_dir="$STATS_DIR/backups/$(date +%Y%m%d_%H%M%S)"
+        mkdir -p "$backup_dir"
+        cp "$STATS_DIR/daily"/*.csv "$backup_dir/" 2>/dev/null
+        rm -f "$STATS_DIR/daily"/*.csv
+        echo -e "  ${GREEN}✓${NC} 已备份并清空历史统计 (备份: $backup_dir)"
+    fi
+
+    echo ""
+    echo -e "${CYAN}开始重新统计所有会话...${NC}"
+    echo ""
+
+    local count=0
+    local total_sessions=0
+    for file in "$PROJECTS_DIR"/*/*.jsonl; do
+        [[ -f "$file" ]] || continue
+        ((total_sessions++))
+        local session_name=$(basename "$file" .jsonl | cut -c1-40)
+        local processed=$(process_file "$file")
+        if [[ -n "$processed" && "$processed" -gt 0 ]]; then
+            ((count++))
+            echo -e "  ${GREEN}✓${NC} $session_name: +$processed 条记录"
+        fi
+    done
+
+    echo ""
+    echo -e "${GREEN}全量统计完成！${NC}"
+    echo -e "  总会话数: $total_sessions"
+    echo -e "  处理会话: $count"
+    echo ""
+    echo -e "${CYAN}今日统计:${NC}"
+    show_today
+}
+
 show_today() { show_date_models "$(date +%Y-%m-%d)"; }
 
 show_date_models() {
@@ -451,6 +497,7 @@ cat << 'EOF'
 命令:
     watch                   启动实时监控
     once                    一次性处理所有文件
+    rescan                  全量重新统计（清除缓存，重新扫描所有历史数据）
     today                   显示今日统计（按模型）
     date [YYYY-MM-DD]       显示指定日期统计（按模型）
     sessions [YYYY-MM-DD]   显示指定日期会话明细
@@ -463,6 +510,7 @@ cat << 'EOF'
 快捷别名 (需添加到 ~/.zshrc):
     cctok                   等同于 cc-token-monitor
     cctoday                 显示今日统计
+    ccrescan                全量重新统计
     ccsum                   显示历史汇总
     ccsessions/ccsess       显示今日会话明细
     ccproj                  显示按项目汇总
@@ -489,6 +537,7 @@ EOF
 case "${1:-help}" in
     watch) start_watch ;;
     once) init_process; show_today ;;
+    rescan) rescan_all ;;
     today) show_today ;;
     date) show_date_models "${2:-$(date +%Y-%m-%d)}" ;;
     sessions) show_sessions "${2:-$(date +%Y-%m-%d)}" ;;
