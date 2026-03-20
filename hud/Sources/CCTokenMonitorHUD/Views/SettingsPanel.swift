@@ -64,11 +64,16 @@ struct SettingsPanel: View {
                     configSection("显示模式", icon: "display", color: accentColor) {
                         VStack(alignment: .leading, spacing: 10) {
                             Picker("", selection: displayModeBinding) {
-                                Text("悬浮窗").tag(DisplayMode.floating)
-                                Text("状态栏").tag(DisplayMode.statusBar)
+                                Text("悬浮窗")
+                                    .foregroundColor(.white)
+                                    .tag(DisplayMode.floating)
+                                Text("状态栏")
+                                    .foregroundColor(.white)
+                                    .tag(DisplayMode.statusBar)
                             }
                             .pickerStyle(.segmented)
                             .colorMultiply(accentColor)
+                            .environment(\.colorScheme, .dark)
 
                             Text(displayModeDescription)
                                 .font(.system(size: 11))
@@ -84,17 +89,19 @@ struct SettingsPanel: View {
                     configSection("状态栏显示", icon: "textformat", color: purpleColor) {
                         VStack(alignment: .leading, spacing: 12) {
                             Picker("内容", selection: statusBarDisplayBinding) {
-                                Text("Tokens").tag(StatusBarDisplay.tokens)
-                                Text("Cost").tag(StatusBarDisplay.cost)
-                                Text("两者").tag(StatusBarDisplay.both)
+                                Text("Tokens").foregroundColor(.white).tag(StatusBarDisplay.tokens)
+                                Text("Cost").foregroundColor(.white).tag(StatusBarDisplay.cost)
+                                Text("两者").foregroundColor(.white).tag(StatusBarDisplay.both)
                             }
                             .pickerStyle(.segmented)
+                            .environment(\.colorScheme, .dark)
 
                             Picker("格式", selection: statusBarDetailLevelBinding) {
-                                Text("简洁 (T/C)").tag(StatusBarDetailLevel.simple)
-                                Text("详细 (I/O/C)").tag(StatusBarDetailLevel.detailed)
+                                Text("简洁 (T/C)").foregroundColor(.white).tag(StatusBarDetailLevel.simple)
+                                Text("详细 (I/O/C)").foregroundColor(.white).tag(StatusBarDetailLevel.detailed)
                             }
                             .pickerStyle(.segmented)
+                            .environment(\.colorScheme, .dark)
 
                             Text(statusBarDisplayDescription)
                                 .font(.system(size: 11))
@@ -110,12 +117,13 @@ struct SettingsPanel: View {
                     configSection("刷新间隔", icon: "arrow.clockwise", color: greenColor) {
                         VStack(alignment: .leading, spacing: 8) {
                             Picker("", selection: refreshIntervalBinding) {
-                                Text("10秒").tag(10)
-                                Text("30秒").tag(30)
-                                Text("1分钟").tag(60)
-                                Text("5分钟").tag(300)
+                                Text("10秒").foregroundColor(.white).tag(10)
+                                Text("30秒").foregroundColor(.white).tag(30)
+                                Text("1分钟").foregroundColor(.white).tag(60)
+                                Text("5分钟").foregroundColor(.white).tag(300)
                             }
                             .pickerStyle(.segmented)
+                            .environment(\.colorScheme, .dark)
                         }
                     }
 
