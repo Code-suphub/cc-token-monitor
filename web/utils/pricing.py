@@ -1,8 +1,10 @@
 """
 价格计算工具模块
 """
+import json
+import os
 
-# 模型价格配置（每百万 tokens）
+# 内置兜底价格（每百万 tokens）
 MODEL_PRICES = {
     'kimi': {'input': 0.8, 'output': 0.8},
     'claude-opus': {'input': 15.0, 'output': 75.0},
@@ -19,10 +21,69 @@ MODEL_PRICES = {
 DEFAULT_PRICE = {'input': 0.8, 'output': 0.8}
 CACHE_DISCOUNT = 0.1  # 缓存命中按 10% 价格计费
 
+_prices_json_cache = None
+
+
+def _load_prices_json() -> dict | None:
+    """读取 ~/.claude/token-stats/config/prices.json（优先于内置价格）"""
+    global _prices_json_cache
+    if _prices_json_cache is not None:
+        return _prices_json_cache
+    config_path = os.path.expanduser('~/.claude/token-stats/config/prices.json')
+    if os.path.exists(config_path):
+        try:
+            with open(config_path) as f:
+                _prices_json_cache = json.load(f)
+                return _prices_json_cache
+        except Exception:
+            pass
+    return None
+
 
 def get_price(model: str) -> dict:
-    """获取模型价格（每百万 tokens）"""
+    """获取模型价格（每百万 tokens）。优先读取 prices.json，再回退内置列表"""
     model_lower = model.lower()
+
+    config = _load_prices_json()
+    if config:
+        # 解析别名：先检查 aliases 字段
+        aliases = config.get('aliases', {})
+        if model_lower in aliases:
+            model_lower = aliases[model_lower].lower()
+
+        models = config.get('models', {})
+        default = config.get('default', DEFAULT_PRICE)
+        cache_read_mult = config.get('cache_discount', {}).get('read_multiplier', CACHE_DISCOUNT)
+
+        # 精确匹配
+        if model_lower in models:
+            entry = models[model_lower]
+            return {
+                'input': entry.get('input', default.get('input', 0.8)),
+                'output': entry.get('output', default.get('output', 0.8)),
+                'cache_read_multiplier': cache_read_mult,
+            }
+        # 前缀匹配：模型名以某个 key 开头
+        for key, entry in models.items():
+            if model_lower.startswith(key):
+                return {
+                    'input': entry.get('input', default.get('input', 0.8)),
+                    'output': entry.get('output', default.get('output', 0.8)),
+                    'cache_read_multiplier': cache_read_mult,
+                }
+        # 子串匹配（兜底）
+        for key, entry in models.items():
+            if key in model_lower:
+                return {
+                    'input': entry.get('input', default.get('input', 0.8)),
+                    'output': entry.get('output', default.get('output', 0.8)),
+                    'cache_read_multiplier': cache_read_mult,
+                }
+        # 未命中，使用 JSON 中的 default
+        return {'input': default.get('input', 0.8), 'output': default.get('output', 0.8),
+                'cache_read_multiplier': cache_read_mult}
+
+    # prices.json 不存在，回退内置列表
     for key, price in MODEL_PRICES.items():
         if key in model_lower:
             return price
@@ -60,9 +121,10 @@ def calculate_cost_with_cache(turns: list) -> list:
         ) / 1000000
 
         # 有缓存场景（实际）
+        cache_discount = price.get('cache_read_multiplier', CACHE_DISCOUNT)
         with_cache_cost = (
             turn['input'] * price['input'] +
-            turn['cache_read'] * price['input'] * CACHE_DISCOUNT +
+            turn['cache_read'] * price['input'] * cache_discount +
             turn['output'] * price['output']
         ) / 1000000
 

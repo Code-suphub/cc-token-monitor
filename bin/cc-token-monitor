@@ -4,7 +4,7 @@
 PROJECTS_DIR="$HOME/.claude/projects"
 STATS_DIR="$HOME/.claude/token-stats"
 CONFIG_FILE="$STATS_DIR/config/prices.json"
-mkdir -p "$STATS_DIR/sessions" "$STATS_DIR/daily" "$STATS_DIR/archives"
+mkdir -p "$STATS_DIR/sessions" "$STATS_DIR/daily" "$STATS_DIR/archives" "$STATS_DIR/config"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -22,11 +22,132 @@ load_price_config() {
     fi
 }
 
+# 从 LiteLLM 拉取最新模型价格
+fetch_litellm_prices() {
+    local LITELLM_URL="https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json"
+    local TMP_FILE=$(mktemp)
+
+    echo -e "${CYAN}正在从 LiteLLM 获取最新价格...${NC}" >&2
+
+    if ! curl -sf --max-time 15 "$LITELLM_URL" -o "$TMP_FILE" 2>/dev/null; then
+        echo -e "${YELLOW}警告: 价格获取失败，网络不可用或超时，使用本地价格配置${NC}" >&2
+        rm -f "$TMP_FILE"
+        return 1
+    fi
+
+    # 过滤并转换格式：per-token -> per-million，保留所有 chat/completion 类模型
+    local NEW_MODELS
+    NEW_MODELS=$(jq '
+        to_entries
+        | map(select(
+            (.value.mode == "chat" or .value.mode == "completion")
+            and (.value.input_cost_per_token != null)
+            and (.value.output_cost_per_token != null)
+          ))
+        | map({
+            key: .key,
+            value: {
+              input:  (.value.input_cost_per_token  * 1000000 | (. * 10000 | round) / 10000),
+              output: (.value.output_cost_per_token * 1000000 | (. * 10000 | round) / 10000),
+              provider: (.value.litellm_provider // "unknown"),
+              cache_read: (if .value.cache_read_input_token_cost != null
+                           then (.value.cache_read_input_token_cost * 1000000 | (. * 10000 | round) / 10000)
+                           else null end)
+            }
+          })
+        | from_entries
+    ' "$TMP_FILE" 2>/dev/null)
+
+    if [[ -z "$NEW_MODELS" || "$NEW_MODELS" == "null" ]]; then
+        echo -e "${RED}错误: 价格数据解析失败${NC}" >&2
+        rm -f "$TMP_FILE"
+        return 1
+    fi
+
+    # 读取现有配置，保留 LiteLLM 不收录的自定义模型（如 kimi 等）
+    local EXISTING_CONFIG
+    EXISTING_CONFIG=$(load_price_config)
+    local EXISTING_MODELS
+    EXISTING_MODELS=$(echo "$EXISTING_CONFIG" | jq '.models // {}')
+    local DEFAULT_PRICE
+    DEFAULT_PRICE=$(echo "$EXISTING_CONFIG" | jq '.default // {"input": 0.8, "output": 0.8}')
+    local CACHE_DISCOUNT
+    CACHE_DISCOUNT=$(echo "$EXISTING_CONFIG" | jq '.cache_discount // {"read_multiplier": 0.1}')
+
+    # 合并：LiteLLM 覆盖同名模型，自定义模型（LiteLLM 不含）保留
+    local MERGED_MODELS
+    MERGED_MODELS=$(jq -n \
+        --argjson litellm "$NEW_MODELS" \
+        --argjson existing "$EXISTING_MODELS" \
+        '($existing | to_entries | map(select(.key as $k | $litellm | has($k) | not)) | from_entries) + $litellm'
+    )
+
+    # 保留现有 aliases
+    local EXISTING_ALIASES
+    EXISTING_ALIASES=$(echo "$EXISTING_CONFIG" | jq '.aliases // {}')
+
+    local MODEL_COUNT
+    MODEL_COUNT=$(echo "$NEW_MODELS" | jq 'keys | length')
+
+    jq -n \
+        --argjson models "$MERGED_MODELS" \
+        --argjson aliases "$EXISTING_ALIASES" \
+        --argjson default_p "$DEFAULT_PRICE" \
+        --argjson cache_d "$CACHE_DISCOUNT" \
+        --arg fetched_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+        '{
+            models: $models,
+            aliases: $aliases,
+            default: $default_p,
+            cache_discount: $cache_d,
+            _meta: { fetched_at: $fetched_at, source: "litellm" }
+        }' > "$CONFIG_FILE"
+
+    rm -f "$TMP_FILE"
+    echo -e "${GREEN}价格已更新：从 LiteLLM 获取到 ${MODEL_COUNT} 个模型${NC}" >&2
+    return 0
+}
+
+# 检查价格数据新鲜度，必要时自动更新
+check_price_freshness() {
+    # prices.json 不存在 → 首次运行，同步拉取
+    if [[ ! -f "$CONFIG_FILE" ]]; then
+        fetch_litellm_prices
+        return
+    fi
+
+    # 读取上次拉取时间
+    local fetched_at
+    fetched_at=$(jq -r '._meta.fetched_at // empty' "$CONFIG_FILE" 2>/dev/null)
+    [[ -z "$fetched_at" ]] && return  # 旧格式文件，跳过
+
+    # 计算天数（兼容 macOS / Linux）
+    local fetch_epoch now_epoch age_days
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        fetch_epoch=$(date -j -f "%Y-%m-%dT%H:%M:%SZ" "$fetched_at" "+%s" 2>/dev/null || echo 0)
+    else
+        fetch_epoch=$(date -d "$fetched_at" "+%s" 2>/dev/null || echo 0)
+    fi
+    now_epoch=$(date +%s)
+    age_days=$(( (now_epoch - fetch_epoch) / 86400 ))
+
+    if (( age_days >= 7 )); then
+        echo -e "${GRAY}价格数据已 ${age_days} 天未更新，后台静默更新中...${NC}" >&2
+        fetch_litellm_prices &>/dev/null &
+        disown $! 2>/dev/null || true
+    fi
+}
+
 # 获取模型价格 (从配置文件)
 get_model_price() {
     local model="$1"
     local type="$2"  # input 或 output
     local config=$(load_price_config)
+
+    # 解析别名：先检查 aliases 字段
+    local alias_target
+    alias_target=$(echo "$config" | jq -r ".aliases[\"$model\"] // empty" 2>/dev/null)
+    [[ -n "$alias_target" ]] && model="$alias_target"
 
     # 尝试精确匹配
     local price=$(echo "$config" | jq -r ".models[\"$model\"].$type // empty" 2>/dev/null)
@@ -351,6 +472,28 @@ show_config() {
         echo -e "${CYAN}配置文件路径:${NC} $CONFIG_FILE"
         echo ""
 
+        # 显示价格数据来源和时效
+        local fetched_at source_tag
+        fetched_at=$(jq -r '._meta.fetched_at // empty' "$CONFIG_FILE" 2>/dev/null)
+        if [[ -n "$fetched_at" ]]; then
+            if [[ "$OSTYPE" == "darwin"* ]]; then
+                local fetch_epoch now_epoch age_days
+                fetch_epoch=$(date -j -f "%Y-%m-%dT%H:%M:%SZ" "$fetched_at" "+%s" 2>/dev/null || echo 0)
+                now_epoch=$(date +%s)
+                age_days=$(( (now_epoch - fetch_epoch) / 86400 ))
+            else
+                age_days=$(( ( $(date +%s) - $(date -d "$fetched_at" +%s 2>/dev/null || echo 0) ) / 86400 ))
+            fi
+            local freshness_color="${GREEN}"
+            (( age_days >= 7 )) && freshness_color="${YELLOW}"
+            (( age_days >= 30 )) && freshness_color="${RED}"
+            echo -e "${CYAN}价格来源:${NC} LiteLLM  ${freshness_color}(上次更新: ${fetched_at}，${age_days} 天前)${NC}"
+            echo -e "运行 ${YELLOW}cc-token-monitor price-update${NC} 手动更新"
+        else
+            echo -e "${CYAN}价格来源:${NC} 本地配置 (运行 ${YELLOW}price-update${NC} 从 LiteLLM 更新)"
+        fi
+        echo ""
+
         # 显示默认价格
         local default_input=$(jq -r '.default.input // 0.8' "$CONFIG_FILE")
         local default_output=$(jq -r '.default.output // 0.8' "$CONFIG_FILE")
@@ -358,22 +501,21 @@ show_config() {
         echo ""
 
         # 显示已配置的模型价格
-        echo -e "${CYAN}已配置模型价格 (USD per 1M tokens):${NC}"
+        local model_count
+        model_count=$(jq '.models | keys | length' "$CONFIG_FILE" 2>/dev/null || echo 0)
+        echo -e "${CYAN}已配置模型价格 (${model_count} 个, USD per 1M tokens):${NC}"
         echo ""
         jq -r '.models | to_entries | sort_by(.value.provider, .key)[] | "  \(.value.provider): \(.key)\n      Input: $\(.value.input), Output: $\(.value.output)"' "$CONFIG_FILE" 2>/dev/null || echo "  配置加载失败"
 
         echo ""
         echo "提示:"
-        echo "  1. 编辑配置文件: open $CONFIG_FILE"
-        echo "  2. 使用 VS Code: code $CONFIG_FILE"
+        echo "  1. 手动更新价格: cc-token-monitor price-update"
+        echo "  2. 编辑配置文件: open $CONFIG_FILE"
         echo "  3. 价格单位: USD per 1M tokens"
         echo ""
     else
-        echo -e "${RED}配置文件不存在: $CONFIG_FILE${NC}"
-        echo "正在创建默认配置文件..."
-        mkdir -p "$STATS_DIR/config"
-        echo '{"default": {"input": 0.8, "output": 0.8}, "models": {}}' > "$CONFIG_FILE"
-        echo -e "${GREEN}已创建默认配置文件${NC}"
+        echo -e "${YELLOW}配置文件不存在，将从 LiteLLM 自动获取价格...${NC}"
+        fetch_litellm_prices
     fi
 }
 
@@ -394,8 +536,16 @@ query_price() {
     local input_price=$(get_model_price "$model" "input")
     local output_price=$(get_model_price "$model" "output")
 
+    # 检查是否有别名，给出提示
+    local alias_target
+    alias_target=$(jq -r ".aliases[\"$model\"] // empty" "$CONFIG_FILE" 2>/dev/null)
+
     echo ""
-    echo -e "${CYAN}模型: $model${NC}"
+    if [[ -n "$alias_target" ]]; then
+        echo -e "${CYAN}模型: $model${NC} ${GRAY}→ ${alias_target}${NC}"
+    else
+        echo -e "${CYAN}模型: $model${NC}"
+    fi
     echo "  Input:  \$${input_price}/M tokens"
     echo "  Output: \$${output_price}/M tokens"
     echo ""
@@ -403,7 +553,68 @@ query_price() {
     echo "  纯输入:  \$${input_price}"
     echo "  纯输出:  \$${output_price}"
     printf "  50/50:   \$%.2f\n" $(echo "scale=2; ($input_price + $output_price) / 2" | bc)
+
+    # 显示价格来源时间
+    if [[ -f "$CONFIG_FILE" ]]; then
+        local fetched_at
+        fetched_at=$(jq -r '._meta.fetched_at // empty' "$CONFIG_FILE" 2>/dev/null)
+        [[ -n "$fetched_at" ]] && echo -e "\n${GRAY}价格来源: LiteLLM (${fetched_at})${NC}"
+    fi
     echo ""
+}
+
+# 管理模型别名
+cmd_price_alias() {
+    local subcmd="${1:-list}"
+
+    case "$subcmd" in
+        add)
+            local alias_name="$2"
+            local target_model="$3"
+            if [[ -z "$alias_name" || -z "$target_model" ]]; then
+                echo "用法: cc-token-monitor price-alias add <别名> <目标模型>"
+                echo "示例: cc-token-monitor price-alias add kimi-for-coding kimi-k2.5"
+                return 1
+            fi
+            # 检查目标模型是否存在
+            local target_exists
+            target_exists=$(jq -r ".models[\"$target_model\"] // empty" "$CONFIG_FILE" 2>/dev/null)
+            if [[ -z "$target_exists" ]]; then
+                echo -e "${YELLOW}提示: 目标模型 '$target_model' 在价格库中不存在，仍将添加映射${NC}"
+            fi
+            # 写入 aliases
+            local tmp=$(mktemp)
+            jq --arg alias "$alias_name" --arg target "$target_model" \
+                '.aliases[$alias] = $target' "$CONFIG_FILE" > "$tmp" && mv "$tmp" "$CONFIG_FILE"
+            echo -e "${GREEN}已添加别名: ${CYAN}$alias_name${NC} → ${CYAN}$target_model${NC}"
+            ;;
+        remove|rm|del)
+            local alias_name="$2"
+            if [[ -z "$alias_name" ]]; then
+                echo "用法: cc-token-monitor price-alias remove <别名>"
+                return 1
+            fi
+            local tmp=$(mktemp)
+            jq --arg alias "$alias_name" 'del(.aliases[$alias])' "$CONFIG_FILE" > "$tmp" && mv "$tmp" "$CONFIG_FILE"
+            echo -e "${GREEN}已删除别名: $alias_name${NC}"
+            ;;
+        list|*)
+            echo ""
+            echo -e "${CYAN}模型别名列表:${NC}"
+            echo ""
+            local count
+            count=$(jq '.aliases // {} | keys | length' "$CONFIG_FILE" 2>/dev/null || echo 0)
+            if [[ "$count" -eq 0 ]]; then
+                echo "  (暂无别名)"
+                echo ""
+                echo "添加别名示例:"
+                echo "  cc-token-monitor price-alias add kimi-for-coding kimi-k2.5"
+            else
+                jq -r '.aliases // {} | to_entries[] | "  \(.key)  →  \(.value)"' "$CONFIG_FILE" 2>/dev/null
+            fi
+            echo ""
+            ;;
+    esac
 }
 
 start_watch() {
@@ -544,6 +755,8 @@ cat << 'EOF'
     export [YYYY-MM-DD]     导出 CSV 报告
     config                  查看/编辑价格配置
     price <model>           查询指定模型价格
+    price-update            从 LiteLLM 拉取最新模型价格
+    price-alias [sub]       管理模型别名 (add/list/remove)
 
 快捷别名 (需添加到 ~/.zshrc):
     cctok                   等同于 cc-token-monitor
@@ -572,6 +785,12 @@ CSV格式: date,session_id,project,model,input,output,cache_create,cache_read,to
 EOF
 }
 
+# 检查价格新鲜度（help / price-update / watch 命令时跳过）
+case "${1:-}" in
+    help|--help|-h|price-update|price-alias|watch) ;;
+    *) check_price_freshness ;;
+esac
+
 case "${1:-help}" in
     watch) start_watch ;;
     once) init_process; show_today ;;
@@ -584,6 +803,8 @@ case "${1:-help}" in
     export) export_csv "${2:-$(date +%Y-%m-%d)}" ;;
     config) show_config ;;
     price) query_price "$2" ;;
+    price-update) fetch_litellm_prices ;;
+    price-alias) cmd_price_alias "$2" "$3" "$4" ;;
     help|--help|-h) show_help ;;
     *)
         # 检查是否为 hud 相关命令
