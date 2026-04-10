@@ -50,9 +50,21 @@ struct HUDConfig: Codable {
     // 位置（自动记忆）
     var position: Position?
 
+    // 位置上下文（包含相对坐标，用于多屏幕场景）
+    var positionContext: PositionContext?
+
     struct Position: Codable {
         var x: Double
         var y: Double
+    }
+
+    struct PositionContext: Codable {
+        var x: Double
+        var y: Double
+        var relativeX: Double  // 0-1, 相对于屏幕宽度的比例
+        var relativeY: Double  // 0-1, 相对于屏幕高度的比例
+        var screenID: String?  // 当前屏幕标识
+        var preferredScreenID: String?  // 用户偏好的屏幕（用于多屏幕自动迁移）
     }
 }
 
@@ -80,9 +92,34 @@ class ConfigManager: ObservableObject {
         NotificationCenter.default.post(name: .init("ConfigDidChange"), object: nil)
     }
 
-    /// 保存位置
+    /// 保存位置（兼容旧版）
     func savePosition(x: Double, y: Double) {
         config.position = HUDConfig.Position(x: x, y: y)
+        saveConfig()
+    }
+
+    /// 保存位置（包含相对坐标和屏幕上下文）
+    func savePositionWithContext(x: Double, y: Double, relativeX: Double, relativeY: Double, screenID: String?, isUserAction: Bool = true) {
+        config.position = HUDConfig.Position(x: x, y: y)
+
+        // 保留之前的 preferredScreenID（如果是自动迁移，不覆盖用户偏好）
+        let previousPreferred = config.positionContext?.preferredScreenID
+
+        // 如果是用户主动移动，更新 preferredScreenID
+        let newPreferredScreenID = isUserAction ? screenID : previousPreferred
+
+        // 系统强制迁移时，保持原有的相对坐标不变
+        let finalRelativeX = isUserAction ? relativeX : (config.positionContext?.relativeX ?? relativeX)
+        let finalRelativeY = isUserAction ? relativeY : (config.positionContext?.relativeY ?? relativeY)
+
+        config.positionContext = HUDConfig.PositionContext(
+            x: x,
+            y: y,
+            relativeX: finalRelativeX,
+            relativeY: finalRelativeY,
+            screenID: screenID,
+            preferredScreenID: newPreferredScreenID
+        )
         saveConfig()
     }
 
