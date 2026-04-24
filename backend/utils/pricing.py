@@ -3,6 +3,7 @@
 """
 import json
 import os
+from typing import Optional, Union, Dict
 
 # 内置兜底价格（每百万 tokens）
 MODEL_PRICES = {
@@ -24,7 +25,7 @@ CACHE_DISCOUNT = 0.1  # 缓存命中按 10% 价格计费
 _prices_json_cache = None
 
 
-def _load_prices_json() -> dict | None:
+def _load_prices_json() -> Optional[Dict]:
     """读取 ~/.claude/token-stats/config/prices.json（优先于内置价格）"""
     global _prices_json_cache
     if _prices_json_cache is not None:

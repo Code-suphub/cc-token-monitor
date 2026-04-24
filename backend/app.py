@@ -10,7 +10,7 @@ from datetime import datetime
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import urllib.parse
 
-from config import DEFAULT_HOST, DEFAULT_PORT, STATIC_DIR, PROJECTS_DIR
+from config import DEFAULT_HOST, DEFAULT_PORT, STATIC_DIR, PROJECTS_DIR, FRONTEND_DIR
 from template_engine import render_template
 from data_service import load_session_detail, get_summary_stats, get_date_stats, get_available_dates
 from utils.pricing import calculate_cost_with_cache
@@ -174,6 +174,7 @@ def main():
 
     print(f"\n🚀 Token 监控面板已启动!")
     print(f"📊 访问地址: http://{DEFAULT_HOST}:{port}")
+    print(f"📁 前端资源: {FRONTEND_DIR}")
     print(f"\n按 Ctrl+C 停止服务\n")
 
     try:

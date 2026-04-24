@@ -67,3 +67,6 @@ hud/.swiftpm/
 # Documentation (design docs, notes)
 discuss/
 docs/
+
+# macapp logs
+macapp-error.log
